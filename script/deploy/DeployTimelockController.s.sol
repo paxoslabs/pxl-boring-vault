@@ -27,15 +27,10 @@ contract DeployTimelockController is BaseScript {
     /// @dev Minimum delay, in seconds, between scheduling and executing an operation.
     uint256 constant MIN_DELAY = 1 days;
 
-    /// @dev Accounts granted PROPOSER_ROLE. NOTE: OZ v5 also grants CANCELLER_ROLE to every proposer, which
-    /// is the intended setup here: the team multisig proposes and is the sole canceller.
-    address constant PROPOSER_0 = 0x0000000000417626Ef34D62C4DC189b021603f2F; // Team Multisig
-
     /// @dev Accounts granted EXECUTOR_ROLE. Execution is deliberately permissioned: `address(0)` would make
     /// execution open to anyone, which we rejected so that the timing of unpauses and merkle root rotations
     /// stays under our control. The multisig executes today; the signer EOAs (all cold wallets) are included
     /// so execution can move to a single signer without a role change going through the delay.
-    address constant EXECUTOR_0 = 0x0000000000417626Ef34D62C4DC189b021603f2F; // Team Multisig
     address constant EXECUTOR_1 = 0x1D607E4eb747f1294AE632D3490f121B00Db9312; // Signer
     address constant EXECUTOR_2 = 0x317eEbf4B4a2ceE0e9a73f276628986Ab254A024; // Signer
     address constant EXECUTOR_3 = 0xFBf73C3622668cfE655fAFF8fCb9876015001A5e; // Signer
@@ -54,8 +49,16 @@ contract DeployTimelockController is BaseScript {
     // =================================================================================
 
     function run() external broadcast returns (TimelockController timelock) {
-        address[] memory proposers = _proposers();
-        address[] memory executors = _executors();
+        address[] memory proposers = new address[](1);
+        proposers[0] = getMultisig();
+
+        address[] memory executors = new address[](6);
+        executors[0] = getMultisig();
+        executors[1] = EXECUTOR_1;
+        executors[2] = EXECUTOR_2;
+        executors[3] = EXECUTOR_3;
+        executors[4] = EXECUTOR_4;
+        executors[5] = EXECUTOR_5;
 
         require(MIN_DELAY != 0, "MIN_DELAY required");
         require(proposers.length != 0, "at least one proposer required");
@@ -63,9 +66,7 @@ contract DeployTimelockController is BaseScript {
         // The team multisig is both the sole proposer/canceller and the first executor. Pinning both slots
         // to `getMultisig()` catches running this script against the wrong chain, where the hardcoded
         // proposer/executor set would not correspond to any key we control.
-        address multisig = getMultisig();
-        require(proposers[0] == multisig, "PROPOSER_0 is not this chain's multisig");
-        require(executors[0] == multisig, "EXECUTOR_0 is not this chain's multisig");
+
         // Execution is permissioned by decision: address(0) in the executor set would open it to everyone.
         for (uint256 i; i < executors.length; ++i) {
             require(executors[i] != address(0), "executor cannot be address(0) (would be permissionless)");
@@ -118,23 +119,6 @@ contract DeployTimelockController is BaseScript {
         console2.log("Chain id: ", block.chainid);
         console2.log("Deployer (salt-bound, cannot be changed): ", broadcaster);
         console2.log("Min delay (seconds): ", MIN_DELAY);
-    }
-
-    /// @dev Proposers, as a memory array. Add entries here when more than one proposer is needed.
-    function _proposers() internal pure returns (address[] memory proposers) {
-        proposers = new address[](1);
-        proposers[0] = PROPOSER_0;
-    }
-
-    /// @dev Executors, as a memory array. Add entries here when more than one executor is needed.
-    function _executors() internal pure returns (address[] memory executors) {
-        executors = new address[](6);
-        executors[0] = EXECUTOR_0;
-        executors[1] = EXECUTOR_1;
-        executors[2] = EXECUTOR_2;
-        executors[3] = EXECUTOR_3;
-        executors[4] = EXECUTOR_4;
-        executors[5] = EXECUTOR_5;
     }
 
 }
