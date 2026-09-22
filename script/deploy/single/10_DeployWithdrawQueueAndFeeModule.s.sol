@@ -101,11 +101,38 @@ contract DeployWithdrawQueueAndFeeModule is BaseScript {
                     config.teller,
                     feeModule,
                     config.withdrawQueueMinimumOrderSize,
+                    broadcaster,
                     broadcaster
                 )
             )
         );
         config.withdrawQueue = withdrawQueue;
+
+        // Post Deploy Checks
+        // One assertion per constructor argument: the args are appended to the creation code as an untyped
+        // blob, so a missing or reordered value is not a compile error and can decode to a plausible-looking
+        // value rather than reverting.
+        WithdrawQueue queue = WithdrawQueue(withdrawQueue);
+        require(
+            keccak256(bytes(queue.name())) == keccak256(bytes(config.withdrawQueueName)),
+            "the withdraw queue name must match the config"
+        );
+        require(
+            keccak256(bytes(queue.symbol())) == keccak256(bytes(config.withdrawQueueSymbol)),
+            "the withdraw queue symbol must match the config"
+        );
+        require(
+            queue.feeRecipient() == config.withdrawQueueFeeRecipient,
+            "the withdraw queue fee recipient must match the config"
+        );
+        require(address(queue.tellerWithMultiAssetSupport()) == config.teller, "the withdraw queue teller must match");
+        require(address(queue.feeModule()) == feeModule, "the withdraw queue fee module must match");
+        require(
+            queue.minimumOrderSize() == config.withdrawQueueMinimumOrderSize,
+            "the withdraw queue minimum order size must match the config"
+        );
+        require(queue.owner() == broadcaster, "the withdraw queue owner must be the broadcaster");
+        require(queue.recoveryAddress() == broadcaster, "the withdraw queue recovery address must be the broadcaster");
 
         // Set Role Capabilities
         RolesAuthority(config.rolesAuthority)
