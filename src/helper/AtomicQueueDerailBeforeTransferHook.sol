@@ -24,11 +24,14 @@ contract AtomicQueueDerailBeforeTransferHook is BeforeTransferHook {
     error UnexpectedRevert(address from, bytes returnData);
     error UseOfInvalidContract(address from, address blockedContract, bytes returnData);
 
-    uint256 internal constant DERAIL_GAS_STIPEND = 30_000;
+    uint256 internal constant DERAIL_GAS_STIPEND = 8000;
     bytes32 internal constant REENTRANCY_REVERT_HASH =
         keccak256(abi.encodeWithSignature("Error(string)", "REENTRANCY"));
+    bytes internal constant PROBE_PAYLOAD = abi.encodeCall(
+        AtomicQueue.solve, (ERC20(address(0)), ERC20(address(0)), new address[](0), new bytes(0), address(0))
+    );
 
-    AtomicQueue public atomicQueue;
+    AtomicQueue public immutable atomicQueue;
 
     constructor(address _atomicQueue) {
         atomicQueue = AtomicQueue(_atomicQueue);
@@ -54,11 +57,8 @@ contract AtomicQueueDerailBeforeTransferHook is BeforeTransferHook {
      * data.
      */
     function beforeTransfer(address from) external view override {
-        bytes memory payload = abi.encodeCall(
-            AtomicQueue.solve, (ERC20(address(0)), ERC20(address(0)), new address[](0), new bytes(0), address(0))
-        );
-
-        (bool success, bytes memory returnData) = address(atomicQueue).staticcall{ gas: DERAIL_GAS_STIPEND }(payload);
+        (bool success, bytes memory returnData) =
+            address(atomicQueue).staticcall{ gas: DERAIL_GAS_STIPEND }(PROBE_PAYLOAD);
 
         assert(!success); // The above call should always fail. Either by a reentrancy or by attempting to SSTORE as a
         // staticcall. There should be no possible path that results in a positive success value
