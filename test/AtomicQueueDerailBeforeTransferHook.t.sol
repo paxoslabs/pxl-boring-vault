@@ -28,6 +28,30 @@ contract ApprovingSolver is IAtomicSolver {
     }
 }
 
+/// @dev A solver that, mid-`solve()`, calls the hook directly and records the raw revert. `solve()`'s own
+/// `nonReentrant` lock is still held at this point, so the hook's reentrancy-detection branch fires for real. The
+/// capture is a staticcall from this contract, not a top-level call into `AtomicQueue`, so it isn't masked by
+/// `SafeTransferLib`'s generic "TRANSFER_FROM_FAILED" the way a normal attack solve is.
+contract ReentrancyProbeSolver is IAtomicSolver {
+    AtomicQueueDerailBeforeTransferHook internal immutable hook;
+
+    bool public probed;
+    bytes public probeRevertData;
+
+    constructor(AtomicQueueDerailBeforeTransferHook _hook) {
+        hook = _hook;
+    }
+
+    function finishSolve(bytes calldata, address, ERC20, ERC20 want, uint256, uint256 assetsForWant) external override {
+        (, bytes memory returnData) =
+            address(hook).staticcall(abi.encodeWithSelector(hook.beforeTransfer.selector, address(0xBEEF)));
+        probed = true;
+        probeRevertData = returnData;
+
+        want.approve(msg.sender, assetsForWant);
+    }
+}
+
 contract AtomicQueueDerailBeforeTransferHookTest is Test {
     BoringVault internal boringVault;
     AtomicQueue internal atomicQueue;
@@ -170,7 +194,7 @@ contract AtomicQueueDerailBeforeTransferHookTest is Test {
         boringVault.transfer(bob, 1e18);
     }
 
-    function testUseOfInvalidContractBlocksTransfers() external {
+    function testUnrelatedRevertBlocksTransfers() external {
         RevertingQueue revertingQueue = new RevertingQueue();
         boringVault.setBeforeTransferHook(address(new AtomicQueueDerailBeforeTransferHook(address(revertingQueue))));
         _mintShares(alice, 10e18);
@@ -178,13 +202,38 @@ contract AtomicQueueDerailBeforeTransferHookTest is Test {
         vm.prank(alice);
         vm.expectRevert(
             abi.encodeWithSelector(
-                AtomicQueueDerailBeforeTransferHook.UseOfInvalidContract.selector,
+                AtomicQueueDerailBeforeTransferHook.UnexpectedRevert.selector,
                 alice,
-                address(revertingQueue),
                 abi.encodeWithSelector(RevertingQueue.Nope.selector)
             )
         );
         boringVault.transfer(bob, 1e18);
+    }
+
+    function testUseOfInvalidContractBlocksLiveReentrancy() external {
+        ReentrancyProbeSolver probe = new ReentrancyProbeSolver(hook);
+
+        junkToken.mint(alice, 10e18);
+        otherToken.mint(address(probe), 10e18);
+
+        vm.startPrank(alice);
+        junkToken.approve(address(atomicQueue), type(uint256).max);
+        atomicQueue.updateAtomicRequest(ERC20(address(junkToken)), ERC20(address(otherToken)), _request(10e18, 1e18));
+        vm.stopPrank();
+
+        vm.prank(alice);
+        atomicQueue.solve(ERC20(address(junkToken)), ERC20(address(otherToken)), _users(alice), hex"", address(probe));
+
+        assertTrue(probe.probed());
+        assertEq(
+            probe.probeRevertData(),
+            abi.encodeWithSelector(
+                AtomicQueueDerailBeforeTransferHook.UseOfInvalidContract.selector,
+                address(0xBEEF),
+                address(atomicQueue),
+                abi.encodeWithSignature("Error(string)", "REENTRANCY")
+            )
+        );
     }
 
     function testHookedTransferGasStaysReasonable() external {
