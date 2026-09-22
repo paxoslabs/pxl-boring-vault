@@ -37,15 +37,7 @@ contract DeployManagerWithMerkleVerification is BaseScript {
         ManagerWithMerkleVerification manager = ManagerWithMerkleVerification(
             CREATEX.deployCreate3(
                 managerSalt,
-                abi.encodePacked(
-                    creationCode,
-                    abi.encode(
-                        broadcaster,
-                        config.boringVault,
-                        config.balancerVault,
-                        18 // decimals
-                    )
-                )
+                abi.encodePacked(creationCode, abi.encode(broadcaster, config.boringVault, config.balancerVault))
             )
         );
 
