@@ -1,0 +1,77 @@
+{
+  "nameEntropy": "PAXGy",
+  "base": "0x130493BCD68Ca6aE7b15566A757Bd6699D73467D",
+  "protocolAdmin": "0x0000000000417626Ef34D62C4DC189b021603f2F",
+  "boringVaultAndBaseDecimals": "18",
+  "boringVault": {
+    "moduleSpecificNameEntropy": "",
+    "boringVaultName": "PAXGy",
+    "boringVaultSymbol": "PAXGy",
+    "address": "0x6c6494Fd9962eB98B94ffA48F6679058F820700e",
+    "setBeforeTransferHookAddress": true
+  },
+  "manager": {
+    "moduleSpecificNameEntropy": "",
+    "address": "0x353741aBa79974a90F88594f6CBd1a9c54651015"
+  },
+  "accountant": {
+    "moduleSpecificNameEntropy": "",
+    "payoutAddress": "0x0000000000417626Ef34D62C4DC189b021603f2F",
+    "allowedExchangeRateChangeUpper": "10004",
+    "allowedExchangeRateChangeLower": "10000",
+    "minimumUpdateDelayInSeconds": "3600",
+    "managementFee": "0",
+    "performanceFee": "0",
+    "address": "0x397e38359f169748a02bc11f98D4f451FE88C1fd"
+  },
+  "teller": {
+    "moduleSpecificNameEntropy": "",
+    "tellerContractName": "MultiChainCCIPTellerWithMultiAssetSupport",
+    "maxGasForPeer": 200000,
+    "minGasForPeer": 0,
+    "setupCCIPConfigs": true,
+    "peerChainId": 196,
+    "peerCcipChainSelector": "3016212468291539606",
+    "ccipOutboundFinality": 0,
+    "ccipInboundFinality": 0,
+    "ccipOutboundRateLimit": {
+      "isEnabled": true,
+      "capacity": "6843377891327159000000",
+      "rate": "79205762631101380"
+    },
+    "ccipInboundRateLimit": {
+      "isEnabled": true,
+      "capacity": "6843377891327159000000",
+      "rate": "79205762631101380"
+    },
+    "withdrawAssets": ["0x45804880De22913dAFE09f4980848ECE6EcbAf78"],
+    "withdrawAssetFlatFees": ["0"],
+    "withdrawAssetPercentFees": ["0"],
+    "depositAssets": ["0x45804880De22913dAFE09f4980848ECE6EcbAf78"],
+    "depositAssetFlatFees": ["0"],
+    "depositAssetPercentFees": ["0"],
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "rolesAuthority": {
+    "moduleSpecificNameEntropy": "",
+    "strategist": "0xa77423F8da11199b3b7fA0AD1DEaB701B81462b5",
+    "exchangeRateBot": "0x1755397BEc366a1e1160d8aE0106C60E7e344B56",
+    "address": "0xC444dA4DF6AF6A9A3891a720c1712a4188d899DD"
+  },
+  "distributorCodeDepositor": {
+    "moduleSpecificNameEntropy": "CCIPUpgrade",
+    "deploy": true,
+    "supplyCap": "6843377891327159000000",
+    "registry": "0xe15a8Ca5BD8464283818088c1760d8f23B6a216E",
+    "policyID": "",
+    "nativeSupported": false
+  },
+  "withdrawQueue": {
+    "moduleSpecificNameEntropy": "",
+    "name": "PAXGy Withdraw Queue",
+    "symbol": "PAXGyQ",
+    "feeRecipient": "0x0000000000417626Ef34D62C4DC189b021603f2F",
+    "minimumOrderSize": "500000000000000000",
+    "processorAddress": "0x0a3e6fBE0435F105D20d9ed289cB65F651cEe6e8"
+  }
+}
