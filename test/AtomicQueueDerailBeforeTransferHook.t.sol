@@ -52,6 +52,30 @@ contract ReentrancyProbeSolver is IAtomicSolver {
     }
 }
 
+/// @dev A solver that checks the hook's observed gas cost during a live reentrancy, so we can react to
+/// EVM changes that affect it.
+contract GasCanarySolver is IAtomicSolver {
+    AtomicQueue internal immutable queue;
+
+    uint256 public queueStaticcallGasConsumed;
+
+    constructor(AtomicQueue _queue) {
+        queue = _queue;
+    }
+
+    function finishSolve(bytes calldata, address, ERC20, ERC20 want, uint256, uint256 assetsForWant) external override {
+        bytes memory probePayload = abi.encodeCall(
+            AtomicQueue.solve, (ERC20(address(0)), ERC20(address(0)), new address[](0), new bytes(0), address(0))
+        );
+        uint256 before = gasleft();
+        (bool success,) = address(queue).staticcall{ gas: 8000 }(probePayload);
+        queueStaticcallGasConsumed = before - gasleft();
+        require(!success, "canary: unexpected success");
+
+        want.approve(msg.sender, assetsForWant);
+    }
+}
+
 contract AtomicQueueDerailBeforeTransferHookTest is Test {
     BoringVault internal boringVault;
     AtomicQueue internal atomicQueue;
@@ -373,6 +397,52 @@ contract AtomicQueueDerailBeforeTransferHookForkTest is Test {
 
         assertEq(BORING_VAULT.balanceOf(attacker), 4e18);
         assertEq(BORING_VAULT.balanceOf(address(victim)), VICTIM_SHARES - 4e18);
+    }
+
+    /// @notice Canary for DERAIL_GAS_STIPEND's safety margin, run against the actual deployed AtomicQueue
+    /// bytecode instead of a local recompile.
+    ///
+    /// This test exists to catch gas cost changes from a future EVM upgrade. If an upgrade repriced the
+    /// opcodes the hook's inner staticcall executes, DERAIL_GAS_STIPEND could silently stop being enough
+    /// to complete the reentrancy revert. That failure would be invisible on-chain: the staticcall
+    /// exceptionally halts the same way whether the queue was genuinely not reentrant, which is safe, or
+    /// genuinely reentrant but ran out of gas mid-revert, which is the exact bypass this hook exists to
+    /// prevent. Both produce success = false, empty return data, and full consumption of the forwarded
+    /// gas. There's no telling them apart after the fact, so the margin has to be watched here, not
+    /// detected at runtime.
+    ///
+    /// This test measures that margin directly and fails if it ever gets dangerously thin.
+    function testForkReentrancyProbeGasStaysWellUnderStipend() external {
+        GasCanarySolver canary = new GasCanarySolver(ATOMIC_QUEUE);
+
+        MockERC20 otherToken = new MockERC20("Other", "OTHER", 18);
+        otherToken.mint(address(canary), 10e18);
+
+        junkToken.mint(attacker, 10e18);
+
+        address[] memory users = new address[](1);
+        users[0] = attacker;
+
+        vm.prank(attacker);
+        ATOMIC_QUEUE.updateAtomicRequest(
+            ERC20(address(junkToken)),
+            ERC20(address(otherToken)),
+            AtomicQueue.AtomicRequest({
+                deadline: uint64(block.timestamp + 1 days),
+                atomicPrice: uint88(1e18),
+                offerAmount: uint96(10e18),
+                inSolve: false
+            })
+        );
+
+        vm.prank(attacker);
+        ATOMIC_QUEUE.solve(ERC20(address(junkToken)), ERC20(address(otherToken)), users, hex"", address(canary));
+
+        assertLt(
+            canary.queueStaticcallGasConsumed(),
+            3000,
+            "reentrancy-probe staticcall gas cost against the live deployed AtomicQueue drifted toward the DERAIL_GAS_STIPEND margin"
+        );
     }
 
     function _installDerailHook() internal {
