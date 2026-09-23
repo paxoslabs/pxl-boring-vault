@@ -23,6 +23,7 @@ import { AtomicQueue } from "src/atomic-queue/AtomicQueue.sol";
 contract AtomicQueueDerailBeforeTransferHook is BeforeTransferHook {
     error UnexpectedRevert(address from, bytes returnData);
     error UseOfInvalidContract(address from, address blockedContract, bytes returnData);
+    error InsufficientGasForProbe(uint256 gasAvailable, uint256 gasRequired);
 
     uint256 internal constant DERAIL_GAS_STIPEND = 8000;
     bytes32 internal constant REENTRANCY_REVERT_HASH =
@@ -55,8 +56,20 @@ contract AtomicQueueDerailBeforeTransferHook is BeforeTransferHook {
      * interaction with the vulnerable atomicQueue.
      *       4. If for any reason the call reverted with different revert data, we throw a custom revert containing that
      * data.
+     *
+     *   Per EIP-150, a call only ever receives min(gasRequested, gasleft() - gasleft() / 64). If the caller
+     * underfunds this transaction, the staticcall below could silently receive fewer than DERAIL_GAS_STIPEND gas
+     * units and run out of gas before a live reentrancy finishes unwinding to its revert message -- which looks
+     * identical to case 2 above (empty return data) and would let a malicious transfer through. We guard against
+     * this by reverting up front whenever we can't guarantee the full stipend will be forwarded, so an underfunded
+     * call fails closed instead of silently bypassing the check.
      */
     function beforeTransfer(address from) external view override {
+        uint256 gasAvailable = gasleft();
+        if (gasAvailable - gasAvailable / 64 < DERAIL_GAS_STIPEND) {
+            revert InsufficientGasForProbe(gasAvailable, DERAIL_GAS_STIPEND);
+        }
+
         (bool success, bytes memory returnData) =
             address(atomicQueue).staticcall{ gas: DERAIL_GAS_STIPEND }(PROBE_PAYLOAD);
 

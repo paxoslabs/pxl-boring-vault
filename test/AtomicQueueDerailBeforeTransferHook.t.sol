@@ -236,6 +236,20 @@ contract AtomicQueueDerailBeforeTransferHookTest is Test {
         );
     }
 
+    /// @dev EIP-150 gas-griefing check: a caller who supplies too little gas to the outer call
+    /// can only ever forward gasleft() - gasleft()/64 to the staticcall, which could silently be
+    /// less than DERAIL_GAS_STIPEND. Without a guard, that under-forwarded probe could run out of
+    /// gas before completing a live-reentrancy revert, producing empty return data indistinguishable
+    /// from "not reentrant" -- and letting the transfer bypass the protection. Confirm the hook now
+    /// reverts up front instead.
+    function testInsufficientGasFailsClosed() external {
+        _mintShares(alice, 10e18);
+
+        vm.prank(alice);
+        vm.expectPartialRevert(AtomicQueueDerailBeforeTransferHook.InsufficientGasForProbe.selector);
+        boringVault.transfer{ gas: 11_000 }(bob, 1e18);
+    }
+
     function testHookedTransferGasStaysReasonable() external {
         _mintShares(alice, 10e18);
 
