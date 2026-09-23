@@ -28,10 +28,14 @@ contract ApprovingSolver is IAtomicSolver {
     }
 }
 
-/// @dev A solver that, mid-`solve()`, calls the hook directly and records the raw revert. `solve()`'s own
-/// `nonReentrant` lock is still held at this point, so the hook's reentrancy-detection branch fires for real. The
-/// capture is a staticcall from this contract, not a top-level call into `AtomicQueue`, so it isn't masked by
-/// `SafeTransferLib`'s generic "TRANSFER_FROM_FAILED" the way a normal attack solve is.
+/// @dev Test-only IAtomicSolver that observes AtomicQueue's `nonReentrant` lock while it's genuinely held.
+///
+/// `solve()` is `nonReentrant` and calls back into `finishSolve` partway through its own execution --
+/// that's the only point a test can run code while the lock is actually set.
+///
+/// From there it staticcalls the real hook's `beforeTransfer`, so its reentrancy-detection branch fires
+/// for real. Calling from here (a staticcall from inside `finishSolve`), not a top-level call into
+/// AtomicQueue, avoids the result's being masked by SafeTransferLib's generic "TRANSFER_FROM_FAILED".
 contract ReentrancyProbeSolver is IAtomicSolver {
     AtomicQueueDerailBeforeTransferHook internal immutable hook;
 
