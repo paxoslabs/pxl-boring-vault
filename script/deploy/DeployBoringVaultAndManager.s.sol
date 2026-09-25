@@ -11,18 +11,18 @@ import "src/helper/Constants.sol";
 
 contract DeployBoringVaultAndManager is BaseScript {
 
-    string constant NAME = "SubsidyVault";
-    string constant SYMBOL = "SV";
+    string constant NAME = "PAXGy TWAP Vault";
+    string constant SYMBOL = "PTWAP";
     address constant BALANCER_VAULT = 0x0000000000000000000000000000000000000000;
     uint8 constant DECIMALS = 6;
 
     function run() public broadcast {
-        bytes32 SALT_ROLES_AUTHORITY = makeSalt(broadcaster, false, "SubsidyVault: RolesAuthority");
-        bytes32 SALT_BORING_VAULT = makeSalt(broadcaster, false, "SubsidyVault: BoringVault");
+        bytes32 SALT_ROLES_AUTHORITY = makeSalt(broadcaster, false, "PAXGyTWAPVault: RolesAuthority");
+        bytes32 SALT_BORING_VAULT = makeSalt(broadcaster, false, "PAXGyTWAPVault: BoringVault");
         bytes32 SALT_MANAGER_WITH_MERKLE_VERIFICATION =
-            makeSalt(broadcaster, false, "SubsidyVault: ManagerWithMerkleVerification");
+            makeSalt(broadcaster, false, "PAXGyTWAPVault: ManagerWithMerkleVerification");
 
-        address STRATEGIST_ADDRESS = 0x91FE06C6E9F97E7DE4580A280E03046155f8e1e3;
+        address STRATEGIST_ADDRESS = 0x774f67f9a4a98EcCD626e1A463F74d75d19CDcE4;
         // deploy a roles authority
         RolesAuthority rolesAuthority = RolesAuthority(
             CREATEX.deployCreate3(
@@ -77,7 +77,8 @@ contract DeployBoringVaultAndManager is BaseScript {
         rolesAuthority.setUserRole(address(managerWithMerkleVerification), MANAGER_ROLE, true);
         rolesAuthority.setUserRole(STRATEGIST_ADDRESS, STRATEGIST_ROLE, true);
 
-        // Transfer ownership to the multisig
+        // Transfer ownership to the timelock
+        // TODO 
         rolesAuthority.transferOwnership(getMultisig());
         boringVault.transferOwnership(getMultisig());
         managerWithMerkleVerification.transferOwnership(getMultisig());
