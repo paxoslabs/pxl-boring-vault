@@ -19,6 +19,12 @@ abstract contract BaseScript is Script {
     string constant CONFIG_PATH_ROOT = "./deployment-config/";
     string constant CONFIG_CHAIN_ROOT = "./deployment-config/chains/";
 
+    /// @dev One hook instance per chain, at the same address on every chain. Reproduced by
+    /// `script/deploy/DeployBeforeTransferHook.s.sol`, which pins the CREATE3 salt this address derives from.
+    /// @custom:security Vaults share this instance, so a freeze applies chain-wide. Changing this constant orphans
+    /// every already-deployed vault pointing at the old address.
+    address internal constant FREEZE_LIST_BEFORE_TRANSFER_HOOK = 0x91248711709bC6a09078Baf79Eb9f9bE5035870a;
+
     /// Custom base params
     ICreateX immutable CREATEX;
 
@@ -131,6 +137,8 @@ abstract contract BaseScript is Script {
             return 0x124A134C0A60FdA03f594C641F8D7d44D4c6d6d3;
         } else if (block.chainid == 4663) {
             return 0x049BE09017dEff9bCf81793E0278c07671FD3C82;
+        } else if (block.chainid == 196) {
+            return 0xd4cbD7a1B1cc869Ea34068DFeC2A15a1fD65EEC5;
         } else {
             revert("Base Script getMultisig: bad chain id");
         }
@@ -148,6 +156,11 @@ abstract contract BaseScript is Script {
         bytes1 crosschainProtectionFlag = isCrosschainProtected ? bytes1(0x01) : bytes1(0x00);
         bytes32 nameEntropyHash = keccak256(abi.encodePacked(nameEntropy));
         bytes11 nameEntropyHash11 = bytes11(nameEntropyHash);
+        // A zero deployer would make salt[0:20] == address(0), which CreateX treats as the permissionless,
+        // squattable salt form (anyone could front-run the deployment address) instead of the deployer-protected
+        // form. CreateX enforces the deployer == msg.sender match on-chain and reverts on any nonzero mismatch.
+        require(deployer != address(0), "makeSalt: salt not deployer-prefixed");
+
         return bytes32(abi.encodePacked(deployer, crosschainProtectionFlag, nameEntropyHash11));
     }
 

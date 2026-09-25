@@ -14,6 +14,7 @@
     "db:studio": "prisma studio"
   },
   "devDependencies": {
+    "@chainlink/contracts-ccip": "^2.0.0",
     "@layerzerolabs/lz-definitions": "^2.3.25",
     "@layerzerolabs/lz-evm-messagelib-v2": "^2.3.25",
     "@layerzerolabs/test-devtools-evm-foundry": "^0.2.7",

@@ -5,6 +5,7 @@
   "balancerVault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
   "opMessenger": "0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1",
   "lzEndpoint": "0x1a44076050125825900e736c501f859c50fE728c",
+  "ccipRouter": "0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D",
   "mailbox": "0xc005dc82818d67AF737725bD4bf75435d065D239",
   "assetToRateProviderAndPriceFeed": {
     "NOTE_0_CHAINLINK_1_REDSTONE_2_GENERIC": 0,

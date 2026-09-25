@@ -2,6 +2,7 @@
     "name": "Base Sepolia",
     "balancerVault": "0x0000000000000000000000000000000000000000",
     "lzEndpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+    "ccipRouter": "0xD3b06cEbF099CE7DA4AcCf578aaebFDBd6e88a93",
     "mailbox": "0x0000000000000000000000000000000000000000",
     "nativeWrapper": "0x1BDD24840e119DC2602dCC587Dd182812427A5Cc",
     "assetToRateProviderAndPriceFeed": {

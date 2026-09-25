@@ -11,7 +11,6 @@ import { ConfigReader } from "script/ConfigReader.s.sol";
 import { CrossChainTellerBase } from "src/base/Roles/CrossChain/CrossChainTellerBase.sol";
 import { stdJson as StdJson } from "@forge-std/StdJson.sol";
 import { DistributorCodeDepositor } from "src/helper/DistributorCodeDepositor.sol";
-import { FreezeListBeforeTransferHook } from "src/helper/FreezeListBeforeTransferHook.sol";
 import "src/helper/Constants.sol";
 
 /**
@@ -72,8 +71,13 @@ contract DeployRolesAuthority is BaseScript {
         require(config.accountant != address(0), "accountant");
         require(config.strategist != address(0), "strategist");
 
-        bytes32 rolesAuthoritySalt =
-            makeSalt(broadcaster, false, string(abi.encodePacked(config.nameEntropy, ":RolesAuthority")));
+        bytes32 rolesAuthoritySalt = makeSalt(
+            broadcaster,
+            false,
+            string(
+                abi.encodePacked(config.nameEntropy, ":RolesAuthority", config.rolesAuthorityModuleSpecificNameEntropy)
+            )
+        );
 
         // Create Contract
         bytes memory creationCode = type(RolesAuthority).creationCode;
@@ -129,12 +133,8 @@ contract DeployRolesAuthority is BaseScript {
             PAUSER_ROLE, config.manager, ManagerWithMerkleVerification.pause.selector, true
         );
 
-        rolesAuthority.setRoleCapability(
-            FREEZE_MANAGER_ROLE,
-            config.freezeListBeforeTransferHook,
-            FreezeListBeforeTransferHook.setFreezeList.selector,
-            true
-        );
+        // The freeze hook is a chain-wide singleton governed by its own RolesAuthority, not this vault's.
+        // See script/deploy/DeployBeforeTransferHook.s.sol.
 
         // --- Set Public Capabilities ---
         rolesAuthority.setPublicCapability(config.teller, CrossChainTellerBase.bridge.selector, true);
