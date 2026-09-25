@@ -12,7 +12,8 @@ contract DeployCowSwapHelper is BaseScript {
     address internal constant SETTLEMENT = 0x9008D19f58AAbD9eD0D60971565AA8510560ab41;
 
     /// @dev The BoringVault this helper serves. Deployment-specific: set to the target vault before broadcasting.
-    address internal constant BORING_VAULT = address(0);
+    /// NOTE predetermined CREATEX address from DeployBoringVaultAndManager.s.sol script
+    address internal constant BORING_VAULT = 0x0EE0c592224bAe0FF5B73B4651166dAF02518369;
 
     /// @dev Upper bound on how far past `block.timestamp` a placed order's `validTo` may reach. Caps the window a
     /// stale price can be filled.
