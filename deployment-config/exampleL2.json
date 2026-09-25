@@ -1,5 +1,5 @@
 {
-  "base":"0x160345fC359604fC6e70E3c5fAcbdE5F7A9342d8",
+  "base": "0x160345fC359604fC6e70E3c5fAcbdE5F7A9342d8",
   "protocolAdmin": "0xF2dE1311C5b2C1BD94de996DA13F80010453e505",
   "boringVaultAndBaseDecimals": "18",
   "boringVault": {
@@ -8,7 +8,6 @@
     "boringVaultSymbol": "PXLV",
     "address": "0x0000000000E7Ab44153eEBEF2343ba5289F65dAC"
   },
-  "freezeListBeforeTransferHook": {"address": "0x0000000000000000000000000000000000000000"},
   "manager": {
     "managerSalt": "0xae6187a622d9193caa52172f133562cdb86ec3f29cf01000f3d4e0369ca1b11c",
     "address": "0x0000000000fAd6Db23abdC1a85621B97bd1Dc82f"

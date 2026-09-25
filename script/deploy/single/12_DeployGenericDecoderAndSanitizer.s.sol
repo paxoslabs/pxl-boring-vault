@@ -30,8 +30,17 @@ contract DeployGenericDecoderAndSanitizer is BaseScript {
             "uniswapV3NonFungiblePositionManager must have code"
         );
 
-        bytes32 salt =
-            makeSalt(broadcaster, false, string(abi.encodePacked(config.nameEntropy, ":GenericDecoderAndSanitizer")));
+        bytes32 salt = makeSalt(
+            broadcaster,
+            false,
+            string(
+                abi.encodePacked(
+                    config.nameEntropy,
+                    ":GenericDecoderAndSanitizer",
+                    config.genericDecoderAndSanitizerModuleSpecificNameEntropy
+                )
+            )
+        );
 
         bytes memory creationCode = type(GenericDecoderAndSanitizer).creationCode;
         address decoder = CREATEX.deployCreate3(

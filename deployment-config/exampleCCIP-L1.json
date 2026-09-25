@@ -1,0 +1,89 @@
+{
+  "nameEntropy": "exampleCCIP",
+  "base": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  "protocolAdmin": "0x0000000000417626Ef34D62C4DC189b021603f2F",
+  "boringVaultAndBaseDecimals": "6",
+  "boringVault": {
+    "moduleSpecificNameEntropy": "",
+    "boringVaultName": "Example CCIP Vault",
+    "boringVaultSymbol": "XCCIP",
+    "address": "0x0000000000000000000000000000000000000000",
+    "setBeforeTransferHookAddress": false
+  },
+  "manager": {
+    "moduleSpecificNameEntropy": "",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "accountant": {
+    "moduleSpecificNameEntropy": "",
+    "payoutAddress": "0x0000000000417626Ef34D62C4DC189b021603f2F",
+    "allowedExchangeRateChangeUpper": "10003",
+    "allowedExchangeRateChangeLower": "9998",
+    "minimumUpdateDelayInSeconds": "3600",
+    "managementFee": "0",
+    "performanceFee": "0",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "teller": {
+    "moduleSpecificNameEntropy": "",
+    "tellerContractName": "MultiChainCCIPTellerWithMultiAssetSupport",
+    "maxGasForPeer": 200000,
+    "minGasForPeer": 0,
+    "setupCCIPConfigs": true,
+    "peerChainId": 8453,
+    "peerCcipChainSelector": "15971525489660198786",
+    "ccipOutboundFinality": 0,
+    "ccipInboundFinality": 0,
+    "ccipOutboundRateLimit": {
+      "isEnabled": false,
+      "capacity": "0",
+      "rate": "0"
+    },
+    "ccipInboundRateLimit": {
+      "isEnabled": false,
+      "capacity": "0",
+      "rate": "0"
+    },
+    "withdrawAssets": [
+      "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+    ],
+    "withdrawAssetFlatFees": [
+      0
+    ],
+    "withdrawAssetPercentFees": [
+      0
+    ],
+    "depositAssets": [
+      "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+    ],
+    "depositAssetFlatFees": [
+      0
+    ],
+    "depositAssetPercentFees": [
+      0
+    ],
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "rolesAuthority": {
+    "moduleSpecificNameEntropy": "",
+    "strategist": "0x0000000000417626Ef34D62C4DC189b021603f2F",
+    "exchangeRateBot": "0x1755397BEc366a1e1160d8aE0106C60E7e344B56",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "distributorCodeDepositor": {
+    "moduleSpecificNameEntropy": "",
+    "deploy": false,
+    "supplyCap": "1000000000000000",
+    "registry": "0xe15a8Ca5BD8464283818088c1760d8f23B6a216E",
+    "policyID": "",
+    "nativeSupported": false
+  },
+  "withdrawQueue": {
+    "moduleSpecificNameEntropy": "",
+    "name": "Example CCIP Withdraw Queue",
+    "symbol": "XCCIPWQ",
+    "feeRecipient": "0x0000000000417626Ef34D62C4DC189b021603f2F",
+    "minimumOrderSize": "1000000",
+    "processorAddress": "0x0000000000417626Ef34D62C4DC189b021603f2F"
+  }
+}

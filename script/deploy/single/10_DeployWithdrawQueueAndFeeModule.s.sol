@@ -42,7 +42,15 @@ contract DeployWithdrawQueueAndFeeModule is BaseScript {
         {
             // Deploy the Fee Module
             bytes32 feeModuleSalt = makeSalt(
-                broadcaster, false, string(abi.encodePacked(config.nameEntropy, ":WithdrawQueueAssetSpecificFeeModule"))
+                broadcaster,
+                false,
+                string(
+                    abi.encodePacked(
+                        config.nameEntropy,
+                        ":WithdrawQueueAssetSpecificFeeModule",
+                        config.withdrawQueueModuleSpecificNameEntropy
+                    )
+                )
             );
             bytes memory feeModuleCreationCode = type(WithdrawQueueAssetSpecificFeeModule).creationCode;
             // Deploy with `broadcaster` as the temporary owner so this script can configure per-asset
@@ -74,8 +82,13 @@ contract DeployWithdrawQueueAndFeeModule is BaseScript {
         require(WithdrawQueueAssetSpecificFeeModule(feeModule).owner() == config.protocolAdmin, "owner mismatch");
 
         // Deploy the Withdraw Queue
-        bytes32 withdrawQueueSalt =
-            makeSalt(broadcaster, false, string(abi.encodePacked(config.nameEntropy, ":WithdrawQueue")));
+        bytes32 withdrawQueueSalt = makeSalt(
+            broadcaster,
+            false,
+            string(
+                abi.encodePacked(config.nameEntropy, ":WithdrawQueue", config.withdrawQueueModuleSpecificNameEntropy)
+            )
+        );
         bytes memory withdrawQueueCreationCode = type(WithdrawQueue).creationCode;
         address withdrawQueue = CREATEX.deployCreate3(
             withdrawQueueSalt,

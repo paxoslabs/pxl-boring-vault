@@ -29,7 +29,7 @@ library ConfigReader {
         uint16 performanceFee;
         string boringVaultName;
         string boringVaultSymbol;
-        address beforeTransferHookAddress;
+        bool setBeforeTransferHook;
         address balancerVault;
         uint32 peerEid;
         bool setupLZConfigs;
@@ -44,6 +44,18 @@ library ConfigReader {
         address lzEndpoint;
         address mailbox;
         uint32 peerDomainId;
+        address ccipRouter;
+        uint32 peerChainId;
+        uint64 peerCcipChainSelector;
+        bool setupCCIPConfigs;
+        uint32 ccipOutboundFinality;
+        uint32 ccipInboundFinality;
+        bool ccipOutboundRateLimitEnabled;
+        uint128 ccipOutboundRateLimitCapacity;
+        uint128 ccipOutboundRateLimitRate;
+        bool ccipInboundRateLimitEnabled;
+        uint128 ccipInboundRateLimitCapacity;
+        uint128 ccipInboundRateLimitRate;
         address manager;
         address teller;
         string tellerContractName;
@@ -78,8 +90,15 @@ library ConfigReader {
         uint256 withdrawQueueMinimumOrderSize;
         address withdrawQueue;
         address withdrawQueueProcessorAddress;
-        address freezeListBeforeTransferHook;
         address genericDecoderAndSanitizer;
+        string boringVaultModuleSpecificNameEntropy;
+        string managerModuleSpecificNameEntropy;
+        string accountantModuleSpecificNameEntropy;
+        string tellerModuleSpecificNameEntropy;
+        string rolesAuthorityModuleSpecificNameEntropy;
+        string distributorCodeDepositorModuleSpecificNameEntropy;
+        string withdrawQueueModuleSpecificNameEntropy;
+        string genericDecoderAndSanitizerModuleSpecificNameEntropy;
     }
 
     function toConfig(string memory _config, string memory _chainConfig) internal view returns (Config memory config) {
@@ -99,21 +118,25 @@ library ConfigReader {
         config.minimumUpdateDelayInSeconds = uint32(_config.readUint(".accountant.minimumUpdateDelayInSeconds"));
         config.managementFee = uint16(_config.readUint(".accountant.managementFee"));
         config.performanceFee = uint16(_config.readUint(".accountant.performanceFee"));
+        config.accountantModuleSpecificNameEntropy = _config.readStringOr(".accountant.moduleSpecificNameEntropy", "");
 
         // Reading from the 'boringVault' section
         config.boringVault = _config.readAddress(".boringVault.address");
         config.boringVaultName = _config.readString(".boringVault.boringVaultName");
         config.boringVaultSymbol = _config.readString(".boringVault.boringVaultSymbol");
-        config.beforeTransferHookAddress = _config.readAddress(".boringVault.beforeTransferHookAddress");
+        config.setBeforeTransferHook = _config.readBoolOr(".boringVault.setBeforeTransferHookAddress", true);
+        config.boringVaultModuleSpecificNameEntropy = _config.readStringOr(".boringVault.moduleSpecificNameEntropy", "");
 
         // Reading from the 'manager' section
         config.manager = _config.readAddress(".manager.address");
+        config.managerModuleSpecificNameEntropy = _config.readStringOr(".manager.moduleSpecificNameEntropy", "");
 
         // Reading from the 'teller' section
         config.teller = _config.readAddress(".teller.address");
         config.maxGasForPeer = uint64(_config.readUint(".teller.maxGasForPeer"));
         config.minGasForPeer = uint64(_config.readUint(".teller.minGasForPeer"));
         config.tellerContractName = _config.readString(".teller.tellerContractName");
+        config.tellerModuleSpecificNameEntropy = _config.readStringOr(".teller.moduleSpecificNameEntropy", "");
         config.withdrawAssets = _config.readAddressArray(".teller.withdrawAssets");
         config.withdrawAssetFlatFees =
             _config.readUintArrayOr(".teller.withdrawAssetFlatFees", new uint256[](config.withdrawAssets.length));
@@ -150,12 +173,34 @@ library ConfigReader {
         } else if (compareStrings(config.tellerContractName, "MultiChainHyperlaneTellerWithMultiAssetSupport")) {
             config.mailbox = _chainConfig.readAddress(".mailbox");
             config.peerDomainId = uint32(_config.readUint(".teller.peerDomainId"));
+        } else if (compareStrings(config.tellerContractName, "MultiChainCCIPTellerWithMultiAssetSupport")) {
+            config.ccipRouter = _chainConfig.readAddress(".ccipRouter");
+
+            config.setupCCIPConfigs = _config.readBool(".teller.setupCCIPConfigs");
+            // The uint32 key MultiChainTellerBase uses for this lane is the peer's EVM chain id; CCIP's own uint64
+            // selector for that chain is carried separately and mapped by setCcipChainSelector.
+            config.peerChainId = uint32(_config.readUint(".teller.peerChainId"));
+            config.peerCcipChainSelector = uint64(_config.readUint(".teller.peerCcipChainSelector"));
+
+            // Unset means WAIT_FOR_FINALITY (bytes4(0)) and disabled rate limiters, which are the safe defaults.
+            config.ccipOutboundFinality = uint32(_config.readUintOr(".teller.ccipOutboundFinality", 0));
+            config.ccipInboundFinality = uint32(_config.readUintOr(".teller.ccipInboundFinality", 0));
+            config.ccipOutboundRateLimitEnabled = _config.readBoolOr(".teller.ccipOutboundRateLimit.isEnabled", false);
+            config.ccipOutboundRateLimitCapacity =
+                uint128(_config.readUintOr(".teller.ccipOutboundRateLimit.capacity", 0));
+            config.ccipOutboundRateLimitRate = uint128(_config.readUintOr(".teller.ccipOutboundRateLimit.rate", 0));
+            config.ccipInboundRateLimitEnabled = _config.readBoolOr(".teller.ccipInboundRateLimit.isEnabled", false);
+            config.ccipInboundRateLimitCapacity =
+                uint128(_config.readUintOr(".teller.ccipInboundRateLimit.capacity", 0));
+            config.ccipInboundRateLimitRate = uint128(_config.readUintOr(".teller.ccipInboundRateLimit.rate", 0));
         }
 
         // Reading from the 'rolesAuthority' section
         config.rolesAuthority = _config.readAddress(".rolesAuthority.address");
         config.strategist = _config.readAddress(".rolesAuthority.strategist");
         config.exchangeRateBot = _config.readAddress(".rolesAuthority.exchangeRateBot");
+        config.rolesAuthorityModuleSpecificNameEntropy =
+            _config.readStringOr(".rolesAuthority.moduleSpecificNameEntropy", "");
 
         // Reading from the 'distributorCodeDepositor' section
         config.distributorCodeDepositorDeploy = _config.readBool(".distributorCodeDepositor.deploy");
@@ -164,6 +209,8 @@ library ConfigReader {
         config.distributorCodeDepositorSupplyCap = _config.readUint(".distributorCodeDepositor.supplyCap");
         config.registry = _config.readAddress(".distributorCodeDepositor.registry");
         config.policyID = _config.readString(".distributorCodeDepositor.policyID");
+        config.distributorCodeDepositorModuleSpecificNameEntropy =
+            _config.readStringOr(".distributorCodeDepositor.moduleSpecificNameEntropy", "");
 
         // Reading from the 'withdrawQueue' section
         config.withdrawQueueName = _config.readString(".withdrawQueue.name");
@@ -171,9 +218,8 @@ library ConfigReader {
         config.withdrawQueueFeeRecipient = _config.readAddress(".withdrawQueue.feeRecipient");
         config.withdrawQueueMinimumOrderSize = uint256(_config.readUint(".withdrawQueue.minimumOrderSize"));
         config.withdrawQueueProcessorAddress = _config.readAddress(".withdrawQueue.processorAddress");
-
-        // Reading from the 'freezeListBeforeTransferHook' section
-        config.freezeListBeforeTransferHook = _config.readAddress(".freezeListBeforeTransferHook.address");
+        config.withdrawQueueModuleSpecificNameEntropy =
+            _config.readStringOr(".withdrawQueue.moduleSpecificNameEntropy", "");
 
         // Reading from the 'chainConfig' section
         config.balancerVault = _chainConfig.readAddress(".balancerVault");
@@ -181,6 +227,9 @@ library ConfigReader {
         // Optional: only required by chains that deploy a Uniswap-V3-aware decoder/sanitizer.
         config.uniswapV3NonFungiblePositionManager =
             _chainConfig.readAddressOr(".uniswapV3NonFungiblePositionManager", address(0));
+
+        config.genericDecoderAndSanitizerModuleSpecificNameEntropy =
+            _config.readStringOr(".genericDecoderAndSanitizer.moduleSpecificNameEntropy", "");
 
         return config;
     }

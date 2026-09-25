@@ -78,7 +78,7 @@ contract DeployBoringVaultAndManager is BaseScript {
         rolesAuthority.setUserRole(STRATEGIST_ADDRESS, STRATEGIST_ROLE, true);
 
         // Transfer ownership to the timelock
-        // TODO 
+        // TODO For PAXGy contracts, ownership must be the timelock, not directly the multisig
         rolesAuthority.transferOwnership(getMultisig());
         boringVault.transferOwnership(getMultisig());
         managerWithMerkleVerification.transferOwnership(getMultisig());

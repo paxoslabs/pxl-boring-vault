@@ -1,5 +1,6 @@
 {
     "name": "Arbitrum One",
     "balancerVault": "0x0000000000000000000000000000000000000000",
-    "lzEndpoint": "0x1a44076050125825900e736c501f859c50fE728c"
+    "lzEndpoint": "0x1a44076050125825900e736c501f859c50fE728c",
+    "ccipRouter": "0x141fa059441E0ca23ce184B6A78bafD2A517DdE8"
 }

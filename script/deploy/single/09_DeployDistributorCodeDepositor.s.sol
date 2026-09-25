@@ -26,8 +26,17 @@ contract DeployDistributorCodeDepositor is BaseScript {
         address nativeWrapper =
             config.distributorCodeDepositorIsNativeDepositSupported ? config.nativeWrapper : address(0);
 
-        bytes32 distributorCodeDepositorSalt =
-            makeSalt(broadcaster, false, string(abi.encodePacked(config.nameEntropy, ":DistributorCodeDepositor")));
+        bytes32 distributorCodeDepositorSalt = makeSalt(
+            broadcaster,
+            false,
+            string(
+                abi.encodePacked(
+                    config.nameEntropy,
+                    ":DistributorCodeDepositor",
+                    config.distributorCodeDepositorModuleSpecificNameEntropy
+                )
+            )
+        );
 
         // Create Contract
         // Have to cut some corners here with local variables to avoid stack too deep errors

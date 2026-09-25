@@ -1,0 +1,7 @@
+{
+  "name": "X Layer",
+  "balancerVault": "0x0000000000000000000000000000000000000000",
+  "nativeWrapper": "0xe538905cf8410324e03A5A23C1c177a474D59b2b",
+  "uniswapV3NonFungiblePositionManager": "0x315e413A11AB0df498eF83873012430ca36638Ae",
+  "ccipRouter": "0xF2b6Cb7867EB5502C3249dD37D7bc1Cc148e5232"
+}

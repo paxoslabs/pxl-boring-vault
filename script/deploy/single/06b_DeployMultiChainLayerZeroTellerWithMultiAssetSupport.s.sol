@@ -41,7 +41,13 @@ contract DeployMultiChainLayerZeroTellerWithMultiAssetSupport is BaseScript {
         bytes32 tellerSalt = makeSalt(
             broadcaster,
             false,
-            string(abi.encodePacked(config.nameEntropy, ":MultiChainLayerZeroTellerWithMultiAssetSupport"))
+            string(
+                abi.encodePacked(
+                    config.nameEntropy,
+                    ":MultiChainLayerZeroTellerWithMultiAssetSupport",
+                    config.tellerModuleSpecificNameEntropy
+                )
+            )
         );
         require(config.boringVault != address(0), "boringVault");
         require(config.accountant != address(0), "accountant");

@@ -9,3 +9,5 @@ ds-test/=lib/forge-std/lib/ds-test/src/
 @layerzerolabs/=node_modules/@layerzerolabs/
 @predicate/=lib/predicate-contracts/src/
 @uniswap/v3-core/=lib/v3-core/
+@chainlink/ccip/=node_modules/@chainlink/contracts-ccip/contracts/
+@chainlink/contracts/=node_modules/@chainlink/contracts/
