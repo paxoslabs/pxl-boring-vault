@@ -144,6 +144,14 @@ abstract contract BaseScript is Script {
         }
     }
 
+    function getTimelockController() internal returns (address) {
+        if (block.chainid == 1) {
+            return 0x0DcC87BC40E775A8207eB2e65b68CF51964cdf08;
+        } else if (block.chainid == 196) {
+            return 0x35b979C55c331767E62EAa69fdce3FB7d8B1D38F;
+        }
+    }
+
     function makeSalt(
         address deployer,
         bool isCrosschainProtected,
