@@ -12,7 +12,7 @@ import "src/helper/Constants.sol";
 contract DeployBoringVaultAndManager is BaseScript {
 
     string constant NAME = "PAXGy TWAP Vault";
-    string constant SYMBOL = "PTWAP";
+    string constant SYMBOL = "PAXGyTWAP";
     address constant BALANCER_VAULT = 0x0000000000000000000000000000000000000000;
     uint8 constant DECIMALS = 6;
 
