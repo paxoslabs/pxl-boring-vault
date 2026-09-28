@@ -14,7 +14,7 @@ contract DeployBoringVaultAndManager is BaseScript {
     string constant NAME = "PAXGy TWAP Vault";
     string constant SYMBOL = "PAXGyTWAP";
     address constant BALANCER_VAULT = 0x0000000000000000000000000000000000000000;
-    uint8 constant DECIMALS = 6;
+    uint8 constant DECIMALS = 18;
 
     function run() public broadcast {
         bytes32 SALT_ROLES_AUTHORITY = makeSalt(broadcaster, false, "PAXGyTWAPVault: RolesAuthority");
@@ -77,10 +77,21 @@ contract DeployBoringVaultAndManager is BaseScript {
         rolesAuthority.setUserRole(address(managerWithMerkleVerification), MANAGER_ROLE, true);
         rolesAuthority.setUserRole(STRATEGIST_ADDRESS, STRATEGIST_ROLE, true);
 
+        // Configure Pauser
+        rolesAuthority.setRoleCapability(
+            PAUSER_ROLE, address(managerWithMerkleVerification), ManagerWithMerkleVerification.pause.selector, true
+        );
+        rolesAuthority.setUserRole(PAUSER_EOA, PAUSER_ROLE, true);
+        rolesAuthority.setUserRole(PAUSER_CONTRACT, PAUSER_ROLE, true);
+
         // NOTE For PAXGy contracts, ownership must be the timelock, not directly the multisig
-        rolesAuthority.transferOwnership(getTimelockController());
-        boringVault.transferOwnership(getTimelockController());
-        managerWithMerkleVerification.transferOwnership(getTimelockController());
+        address timelockController = getTimelockController();
+
+        require(timelockController.code.length != 0, "timelockController must have code");
+
+        rolesAuthority.transferOwnership(timelockController);
+        boringVault.transferOwnership(timelockController);
+        managerWithMerkleVerification.transferOwnership(timelockController);
 
         console.log("vault deployed at: ", address(boringVault));
         console.log("Roles Authority deployed at: ", address(rolesAuthority));
