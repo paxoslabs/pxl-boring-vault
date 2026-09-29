@@ -83,6 +83,7 @@ contract DeployBoringVaultAndManager is BaseScript {
         );
         rolesAuthority.setUserRole(PAUSER_EOA, PAUSER_ROLE, true);
         rolesAuthority.setUserRole(PAUSER_CONTRACT, PAUSER_ROLE, true);
+        rolesAuthority.setUserRole(getMultisig(), PAUSER_ROLE, true);
 
         // NOTE For PAXGy contracts, ownership must be the timelock, not directly the multisig
         address timelockController = getTimelockController();
