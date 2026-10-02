@@ -25,10 +25,11 @@ contract DeployCowSwapHelper is BaseScript {
     string internal constant SALT_ENTROPY = "CowSwapHelper";
 
     function run() public broadcast returns (address) {
-        // Owner is the chain's canonical protocol multisig.
-        address owner = getMultisig();
+        // Owner is the chain's canonical timelock controller.
+        address owner = getTimelockController();
 
-        require(owner != address(0), "owner (multisig) must not be zero address");
+        require(owner != address(0), "owner timelockController must not be zero address");
+        require(owner.code.length != 0, "owner timelockController must have code");
         require(BORING_VAULT != address(0), "BORING_VAULT must not be zero address");
         require(BORING_VAULT.code.length != 0, "BORING_VAULT must have code");
         require(SETTLEMENT.code.length != 0, "SETTLEMENT has no code on this chain");
