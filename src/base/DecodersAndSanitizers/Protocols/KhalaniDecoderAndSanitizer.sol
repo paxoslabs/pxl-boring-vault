@@ -47,6 +47,7 @@ abstract contract KhalaniDecoderAndSanitizer is BaseDecoderAndSanitizer {
     error UnexpectedSettlerCall(bytes4 selector);
     error UnexpectedActionCount(uint256 actionCount);
     error UnexpectedAction(uint256 index, bytes4 selector);
+    error RfqTokenNotBuyToken(address rfqToken, address buyToken);
 
     //============================== KHALANI ===============================
 
@@ -86,7 +87,7 @@ abstract contract KhalaniDecoderAndSanitizer is BaseDecoderAndSanitizer {
     }
 
     // @desc Khalani RFQ fill via 0x AllowanceHolder.exec into Settler.execute; actions must be exactly
-    //       [TRANSFER_FROM, RFQ]
+    //       [TRANSFER_FROM, RFQ] and the maker's permitted token must be the slippage buyToken
     // @tag operator:address:the Settler allowed to pull the sell token through AllowanceHolder
     // @tag token:address:the sell token
     // @tag target:address:the Settler called with data
@@ -95,6 +96,7 @@ abstract contract KhalaniDecoderAndSanitizer is BaseDecoderAndSanitizer {
     // @tag transferFromRecipient:address:receives the vault's sell token
     // @tag rfqRecipient:address:receives the maker's buy token
     // @tag takerToken:address:the sell token the maker's coupon is signed over
+    // @tag maker:address:the Khalani signer that supplies the buy token and receives the sell token
     function exec(
         address operator,
         address token,
@@ -115,20 +117,18 @@ abstract contract KhalaniDecoderAndSanitizer is BaseDecoderAndSanitizer {
             abi.decode(data[4:], (DecoderCustomTypes.SettlerAllowedSlippage, bytes[], bytes32));
         if (actions.length != 2) revert UnexpectedActionCount(actions.length);
 
-        bytes4 firstActionSelector = bytes4(actions[0]);
-        if (firstActionSelector != ISettlerActions.TRANSFER_FROM.selector) {
-            revert UnexpectedAction(0, firstActionSelector);
+        if (bytes4(actions[0]) != ISettlerActions.TRANSFER_FROM.selector) {
+            revert UnexpectedAction(0, bytes4(actions[0]));
         }
-        bytes4 secondActionSelector = bytes4(actions[1]);
-        if (secondActionSelector != ISettlerActions.RFQ.selector) revert UnexpectedAction(1, secondActionSelector);
+        if (bytes4(actions[1]) != ISettlerActions.RFQ.selector) revert UnexpectedAction(1, bytes4(actions[1]));
 
         (address transferFromRecipient,,) = abi.decode(
             _stripSelectorInPlace(actions[0]), (address, DecoderCustomTypes.Permit2PermitTransferFrom, bytes)
         );
-        (address rfqRecipient,,,, address takerToken,) = abi.decode(
-            _stripSelectorInPlace(actions[1]),
-            (address, DecoderCustomTypes.Permit2PermitTransferFrom, address, bytes, address, uint256)
-        );
+        (address rfqRecipient, address makerToken, address maker, address takerToken) = _decodeRfqAction(actions[1]);
+        // The RFQ action pays the maker's token straight to rfqRecipient; only buyToken is swept to
+        // slippage.recipient, so any other token would bypass the leaf-approved buyToken.
+        if (makerToken != slippage.buyToken) revert RfqTokenNotBuyToken(makerToken, slippage.buyToken);
 
         addressesFound = abi.encodePacked(
             operator,
@@ -138,8 +138,23 @@ abstract contract KhalaniDecoderAndSanitizer is BaseDecoderAndSanitizer {
             slippage.buyToken,
             transferFromRecipient,
             rfqRecipient,
-            takerToken
+            takerToken,
+            maker
         );
+    }
+
+    /// @dev Consumes `action`; see `_stripSelectorInPlace`.
+    function _decodeRfqAction(bytes memory action)
+        internal
+        pure
+        returns (address recipient, address makerToken, address maker, address takerToken)
+    {
+        DecoderCustomTypes.Permit2PermitTransferFrom memory makerPermit;
+        (recipient, makerPermit, maker,, takerToken,) = abi.decode(
+            _stripSelectorInPlace(action),
+            (address, DecoderCustomTypes.Permit2PermitTransferFrom, address, bytes, address, uint256)
+        );
+        makerToken = makerPermit.permitted.token;
     }
 
     /// @dev Memory equivalent of `action[4:]`. The result aliases `action` and overwrites its length word, so `action`
