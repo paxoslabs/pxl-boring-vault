@@ -422,4 +422,23 @@ contract DecoderCustomTypes {
         EcoTokenAmount[] tokens;
     }
 
+    // ========================================= 0x SETTLER =========================================
+
+    struct SettlerAllowedSlippage {
+        address recipient;
+        address buyToken;
+        uint256 minAmountOut;
+    }
+
+    struct Permit2TokenPermissions {
+        address token;
+        uint256 amount;
+    }
+
+    struct Permit2PermitTransferFrom {
+        Permit2TokenPermissions permitted;
+        uint256 nonce;
+        uint256 deadline;
+    }
+
 }
