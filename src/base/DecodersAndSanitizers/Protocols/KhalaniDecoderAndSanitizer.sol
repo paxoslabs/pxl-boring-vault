@@ -48,6 +48,7 @@ abstract contract KhalaniDecoderAndSanitizer is BaseDecoderAndSanitizer {
     error UnexpectedActionCount(uint256 actionCount);
     error UnexpectedAction(uint256 index, bytes4 selector);
     error RfqTokenNotBuyToken(address rfqToken, address buyToken);
+    error TransferFromTokenNotTakerToken(address transferFromToken, address takerToken);
 
     //============================== KHALANI ===============================
 
@@ -87,7 +88,8 @@ abstract contract KhalaniDecoderAndSanitizer is BaseDecoderAndSanitizer {
     }
 
     // @desc Khalani RFQ fill via 0x AllowanceHolder.exec into Settler.execute; actions must be exactly
-    //       [TRANSFER_FROM, RFQ] and the maker's permitted token must be the slippage buyToken
+    //       [TRANSFER_FROM, RFQ], the maker's permitted token must be the slippage buyToken, and the TRANSFER_FROM
+    //       permitted token must be the RFQ takerToken
     // @tag operator:address:the Settler allowed to pull the sell token through AllowanceHolder
     // @tag token:address:the sell token
     // @tag target:address:the Settler called with data
@@ -122,13 +124,12 @@ abstract contract KhalaniDecoderAndSanitizer is BaseDecoderAndSanitizer {
         }
         if (bytes4(actions[1]) != ISettlerActions.RFQ.selector) revert UnexpectedAction(1, bytes4(actions[1]));
 
-        (address transferFromRecipient,,) = abi.decode(
-            _stripSelectorInPlace(actions[0]), (address, DecoderCustomTypes.Permit2PermitTransferFrom, bytes)
-        );
+        (address transferFromRecipient, address transferFromToken) = _decodeTransferFromAction(actions[0]);
         (address rfqRecipient, address makerToken, address maker, address takerToken) = _decodeRfqAction(actions[1]);
         // The RFQ action pays the maker's token straight to rfqRecipient; only buyToken is swept to
         // slippage.recipient, so any other token would bypass the leaf-approved buyToken.
         if (makerToken != slippage.buyToken) revert RfqTokenNotBuyToken(makerToken, slippage.buyToken);
+        if (transferFromToken != takerToken) revert TransferFromTokenNotTakerToken(transferFromToken, takerToken);
 
         addressesFound = abi.encodePacked(
             operator,
@@ -141,6 +142,14 @@ abstract contract KhalaniDecoderAndSanitizer is BaseDecoderAndSanitizer {
             takerToken,
             maker
         );
+    }
+
+    /// @dev Consumes `action`; see `_stripSelectorInPlace`.
+    function _decodeTransferFromAction(bytes memory action) internal pure returns (address recipient, address token) {
+        DecoderCustomTypes.Permit2PermitTransferFrom memory permit;
+        (recipient, permit,) =
+            abi.decode(_stripSelectorInPlace(action), (address, DecoderCustomTypes.Permit2PermitTransferFrom, bytes));
+        token = permit.permitted.token;
     }
 
     /// @dev Consumes `action`; see `_stripSelectorInPlace`.
