@@ -49,6 +49,7 @@ abstract contract KhalaniDecoderAndSanitizer is BaseDecoderAndSanitizer {
     error UnexpectedAction(uint256 index, bytes4 selector);
     error RfqTokenNotBuyToken(address rfqToken, address buyToken);
     error TransferFromTokenNotTakerToken(address transferFromToken, address takerToken);
+    error TransferFromAmountNotMaxTakerAmount(uint256 transferFromAmount, uint256 maxTakerAmount);
 
     //============================== KHALANI ===============================
 
@@ -89,7 +90,7 @@ abstract contract KhalaniDecoderAndSanitizer is BaseDecoderAndSanitizer {
 
     // @desc Khalani RFQ fill via 0x AllowanceHolder.exec into Settler.execute; actions must be exactly
     //       [TRANSFER_FROM, RFQ], the maker's permitted token must be the slippage buyToken, and the TRANSFER_FROM
-    //       permitted token must be the RFQ takerToken
+    //       permit must be exactly the RFQ takerToken and maxTakerAmount
     // @tag operator:address:the Settler allowed to pull the sell token through AllowanceHolder
     // @tag token:address:the sell token
     // @tag target:address:the Settler called with data
@@ -111,6 +112,11 @@ abstract contract KhalaniDecoderAndSanitizer is BaseDecoderAndSanitizer {
         virtual
         returns (bytes memory addressesFound)
     {
+        addressesFound = abi.encodePacked(operator, token, target, _decodeSettlerExecute(data));
+    }
+
+    /// @dev Enforces the Khalani RFQ shape; see `exec`.
+    function _decodeSettlerExecute(bytes calldata data) internal pure returns (bytes memory addressesFound) {
         bytes4 selector = bytes4(data);
         if (selector != ISettlerTakerSubmitted.execute.selector) {
             revert UnexpectedSettlerCall(selector);
@@ -124,46 +130,62 @@ abstract contract KhalaniDecoderAndSanitizer is BaseDecoderAndSanitizer {
         }
         if (bytes4(actions[1]) != ISettlerActions.RFQ.selector) revert UnexpectedAction(1, bytes4(actions[1]));
 
-        (address transferFromRecipient, address transferFromToken) = _decodeTransferFromAction(actions[0]);
-        (address rfqRecipient, address makerToken, address maker, address takerToken) = _decodeRfqAction(actions[1]);
+        (address transferFromRecipient, DecoderCustomTypes.Permit2PermitTransferFrom memory transferFromPermit) =
+            _decodeTransferFromAction(actions[0]);
+        (
+            address rfqRecipient,
+            DecoderCustomTypes.Permit2PermitTransferFrom memory makerPermit,
+            address maker,
+            address takerToken,
+            uint256 maxTakerAmount
+        ) = _decodeRfqAction(actions[1]);
+
         // The RFQ action pays the maker's token straight to rfqRecipient; only buyToken is swept to
         // slippage.recipient, so any other token would bypass the leaf-approved buyToken.
-        if (makerToken != slippage.buyToken) revert RfqTokenNotBuyToken(makerToken, slippage.buyToken);
-        if (transferFromToken != takerToken) revert TransferFromTokenNotTakerToken(transferFromToken, takerToken);
+        if (makerPermit.permitted.token != slippage.buyToken) {
+            revert RfqTokenNotBuyToken(makerPermit.permitted.token, slippage.buyToken);
+        }
+        if (transferFromPermit.permitted.token != takerToken) {
+            revert TransferFromTokenNotTakerToken(transferFromPermit.permitted.token, takerToken);
+        }
+        // The maker is paid at most maxTakerAmount; any excess pulled stays in the Settler, where anyone can sweep it
+        // so we require the amounts are equal
+        if (transferFromPermit.permitted.amount != maxTakerAmount) {
+            revert TransferFromAmountNotMaxTakerAmount(transferFromPermit.permitted.amount, maxTakerAmount);
+        }
 
         addressesFound = abi.encodePacked(
-            operator,
-            token,
-            target,
-            slippage.recipient,
-            slippage.buyToken,
-            transferFromRecipient,
-            rfqRecipient,
-            takerToken,
-            maker
+            slippage.recipient, slippage.buyToken, transferFromRecipient, rfqRecipient, takerToken, maker
         );
     }
 
     /// @dev Consumes `action`; see `_stripSelectorInPlace`.
-    function _decodeTransferFromAction(bytes memory action) internal pure returns (address recipient, address token) {
-        DecoderCustomTypes.Permit2PermitTransferFrom memory permit;
-        (recipient, permit,) =
-            abi.decode(_stripSelectorInPlace(action), (address, DecoderCustomTypes.Permit2PermitTransferFrom, bytes));
-        token = permit.permitted.token;
+    function _decodeTransferFromAction(bytes memory action)
+        internal
+        pure
+        returns (address recipient, DecoderCustomTypes.Permit2PermitTransferFrom memory permit)
+    {
+        (recipient, permit,) = abi.decode(
+            _stripSelectorInPlace(action), (address, DecoderCustomTypes.Permit2PermitTransferFrom, bytes)
+        );
     }
 
     /// @dev Consumes `action`; see `_stripSelectorInPlace`.
     function _decodeRfqAction(bytes memory action)
         internal
         pure
-        returns (address recipient, address makerToken, address maker, address takerToken)
+        returns (
+            address recipient,
+            DecoderCustomTypes.Permit2PermitTransferFrom memory makerPermit,
+            address maker,
+            address takerToken,
+            uint256 maxTakerAmount
+        )
     {
-        DecoderCustomTypes.Permit2PermitTransferFrom memory makerPermit;
-        (recipient, makerPermit, maker,, takerToken,) = abi.decode(
+        (recipient, makerPermit, maker,, takerToken, maxTakerAmount) = abi.decode(
             _stripSelectorInPlace(action),
             (address, DecoderCustomTypes.Permit2PermitTransferFrom, address, bytes, address, uint256)
         );
-        makerToken = makerPermit.permitted.token;
     }
 
     /// @dev Memory equivalent of `action[4:]`. The result aliases `action` and overwrites its length word, so `action`
