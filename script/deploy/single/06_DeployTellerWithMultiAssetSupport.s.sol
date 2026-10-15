@@ -3,12 +3,11 @@ pragma solidity 0.8.21;
 
 import { AccountantWithRateProviders } from "./../../../src/base/Roles/AccountantWithRateProviders.sol";
 import { TellerWithMultiAssetSupport } from "./../../../src/base/Roles/TellerWithMultiAssetSupport.sol";
-import { MainnetAddresses } from "./../../../test/resources/MainnetAddresses.sol";
 import { BaseScript } from "./../../Base.s.sol";
 import { stdJson as StdJson } from "@forge-std/StdJson.sol";
 import { ConfigReader } from "../../ConfigReader.s.sol";
 
-contract DeployTellerWithMultiAssetSupport is BaseScript, MainnetAddresses {
+contract DeployTellerWithMultiAssetSupport is BaseScript {
 
     using StdJson for string;
 
