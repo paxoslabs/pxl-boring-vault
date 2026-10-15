@@ -5,6 +5,8 @@ import { BaseScript } from "./../../Base.s.sol";
 import { stdJson as StdJson } from "@forge-std/StdJson.sol";
 import { ConfigReader, IAuthority } from "../../ConfigReader.s.sol";
 import { WithdrawQueue } from "src/base/Roles/WithdrawQueue.sol";
+import { DistributorCodeDepositor } from "src/helper/DistributorCodeDepositor.sol";
+import { Auth } from "@solmate/auth/Auth.sol";
 
 /**
  * Update `rolesAuthority` and transfer ownership from deployer EOA to the
@@ -58,6 +60,12 @@ contract SetAuthorityAndTransferOwnerships is BaseScript {
         IAuthority(config.withdrawQueue).transferOwnership(config.protocolAdmin);
         IAuthority(config.rolesAuthority).transferOwnership(config.protocolAdmin);
 
+        if (config.freezeHookMode == ConfigReader.FreezeHookMode.DEPLOY_NEW) {
+            require(config.freezeListBeforeTransferHook.code.length != 0, "freeze hook must have code");
+            IAuthority(config.freezeListBeforeTransferHook).setAuthority(config.rolesAuthority);
+            IAuthority(config.freezeListBeforeTransferHook).transferOwnership(config.protocolAdmin);
+        }
+
         // No need to transfer ownership to distributor code depositor as it is set to protocolAdmin in deployment.
 
         // Post Configuration Check
@@ -70,7 +78,37 @@ contract SetAuthorityAndTransferOwnerships is BaseScript {
             require(
                 IAuthority(config.distributorCodeDepositor).owner() == config.protocolAdmin, "distributorCodeDepositor"
             );
+            require(
+                address(Auth(config.distributorCodeDepositor).authority()) == config.rolesAuthority,
+                "distributorCodeDepositor authority"
+            );
+            // The fee modules are owned directly and never get an authority.
+            require(
+                IAuthority(address(DistributorCodeDepositor(config.distributorCodeDepositor).feeModule())).owner()
+                    == config.protocolAdmin,
+                "distributorCodeDepositor fee module"
+            );
         }
+        require(
+            IAuthority(address(WithdrawQueue(config.withdrawQueue).feeModule())).owner() == config.protocolAdmin,
+            "withdrawQueue fee module"
+        );
+        require(IAuthority(config.rolesAuthority).owner() == config.protocolAdmin, "rolesAuthority");
+        if (config.freezeHookMode == ConfigReader.FreezeHookMode.DEPLOY_NEW) {
+            require(IAuthority(config.freezeListBeforeTransferHook).owner() == config.protocolAdmin, "freeze hook");
+            require(
+                address(Auth(config.freezeListBeforeTransferHook).authority()) == config.rolesAuthority,
+                "freeze hook authority"
+            );
+        }
+
+        require(address(Auth(config.boringVault).authority()) == config.rolesAuthority, "boringVault authority");
+        require(address(Auth(config.manager).authority()) == config.rolesAuthority, "manager authority");
+        require(address(Auth(config.accountant).authority()) == config.rolesAuthority, "accountant authority");
+        require(address(Auth(config.teller).authority()) == config.rolesAuthority, "teller authority");
+        require(address(Auth(config.withdrawQueue).authority()) == config.rolesAuthority, "withdrawQueue authority");
+
+        require(config.protocolAdmin != broadcaster, "deployer must not remain the owner");
     }
 
 }

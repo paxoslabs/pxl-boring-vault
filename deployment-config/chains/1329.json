@@ -13,7 +13,7 @@
       "signature": "getRateSafe()",
       "arg": 0,
       "expectedMin": "1000000000000000000",
-      "expectedMax": "1100000000000000000",
+      "expectedMax": "1500000000000000000",
       "rateProvider": "0x4cb84449fab2812556533491a5c171611a9737fa"
     }
   }

@@ -12,6 +12,13 @@ import { ILayerZeroEndpointV2 } from "@layerzerolabs/lz-evm-protocol-v2/contract
 import { SetConfigParam } from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/IMessageLibManager.sol";
 import { console2 } from "@forge-std/console2.sol";
 
+/// @dev `delegates` is a public mapping on EndpointV2 that ILayerZeroEndpointV2 does not expose.
+interface IEndpointDelegates {
+
+    function delegates(address oapp) external view returns (address);
+
+}
+
 contract DeployMultiChainLayerZeroTellerWithMultiAssetSupport is BaseScript {
 
     using StdJson for string;
@@ -111,6 +118,10 @@ contract DeployMultiChainLayerZeroTellerWithMultiAssetSupport is BaseScript {
 
         // transfer delegate to the multisig
         teller.setDelegate(config.protocolAdmin);
+        require(
+            IEndpointDelegates(config.lzEndpoint).delegates(address(teller)) == config.protocolAdmin,
+            "LZ delegate must be the protocol admin"
+        );
 
         // Post Deploy Checks
         require(teller.shareLockPeriod() == 0, "share lock period must be zero");

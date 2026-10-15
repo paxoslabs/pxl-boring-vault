@@ -15,9 +15,20 @@ library ConfigReader {
 
     using StdJson for string;
 
+    /// @notice Which freeze-list transfer hook the new vault gets.
+    enum FreezeHookMode {
+        // No hook: shares transfer without freeze checks.
+        NONE,
+        // The chain-wide hook at BaseScript.FREEZE_LIST_BEFORE_TRANSFER_HOOK, governed by its own RolesAuthority.
+        USE_EXISTING,
+        // A hook for this vault only, governed by the vault's RolesAuthority. See DeployFreezeListBeforeTransferHook.
+        DEPLOY_NEW
+    }
+
     struct Config {
         string nameEntropy;
         address protocolAdmin;
+        bool externalProtocolAdmin;
         address base;
         uint8 boringVaultAndBaseDecimals;
         address boringVault;
@@ -29,7 +40,9 @@ library ConfigReader {
         uint16 performanceFee;
         string boringVaultName;
         string boringVaultSymbol;
-        bool setBeforeTransferHook;
+        FreezeHookMode freezeHookMode;
+        address[] freezeManagers;
+        address freezeListBeforeTransferHook;
         address balancerVault;
         uint32 peerEid;
         bool setupLZConfigs;
@@ -59,7 +72,8 @@ library ConfigReader {
         address manager;
         address teller;
         string tellerContractName;
-        address strategist;
+        address[] strategists;
+        address[] pausers;
         address exchangeRateBot;
         address rolesAuthority;
         uint256 maxTimeFromLastUpdate;
@@ -78,6 +92,8 @@ library ConfigReader {
         address[] priceFeeds;
         bool distributorCodeDepositorDeploy;
         bool distributorCodeDepositorIsNativeDepositSupported;
+        bool distributorCodeDepositorAllowPublicDeposit;
+        address distributorCodeDepositorFeeRecipient;
         address distributorCodeDepositor;
         address nativeWrapper;
         address uniswapV3NonFungiblePositionManager;
@@ -87,6 +103,8 @@ library ConfigReader {
         string withdrawQueueName;
         string withdrawQueueSymbol;
         address withdrawQueueFeeRecipient;
+        bool withdrawQueueAllowPublicSubmitOrder;
+        bool withdrawQueueAllowPublicUserCancellations;
         address withdrawQueueRecoveryAddress;
         uint256 withdrawQueueMinimumOrderSize;
         address withdrawQueue;
@@ -108,6 +126,8 @@ library ConfigReader {
 
         // Reading the 'protocolAdmin'
         config.protocolAdmin = _config.readAddress(".protocolAdmin");
+        // Opt-out of the BaseScript check that protocolAdmin is the chain's Paxos Labs multisig.
+        config.externalProtocolAdmin = _config.readBool(".externalProtocolAdmin");
         config.base = _config.readAddress(".base");
         config.boringVaultAndBaseDecimals = uint8(_config.readUint(".boringVaultAndBaseDecimals"));
 
@@ -125,7 +145,17 @@ library ConfigReader {
         config.boringVault = _config.readAddress(".boringVault.address");
         config.boringVaultName = _config.readString(".boringVault.boringVaultName");
         config.boringVaultSymbol = _config.readString(".boringVault.boringVaultSymbol");
-        config.setBeforeTransferHook = _config.readBoolOr(".boringVault.setBeforeTransferHookAddress", true);
+        config.freezeHookMode = _readFreezeHookMode(_config);
+        // Freeze managers only exist on a hook this vault deploys; a list under any other mode is a config mistake.
+        if (config.freezeHookMode == FreezeHookMode.DEPLOY_NEW) {
+            config.freezeManagers = _config.readAddressArray(".freezeListBeforeTransferHook.freezeManagers");
+            require(config.freezeManagers.length != 0, "ConfigReader: mode deployNew needs a freeze manager");
+        } else {
+            require(
+                !_config.keyExists(".freezeListBeforeTransferHook.freezeManagers"),
+                "ConfigReader: freezeManagers only apply to mode deployNew"
+            );
+        }
         config.boringVaultModuleSpecificNameEntropy = _config.readStringOr(".boringVault.moduleSpecificNameEntropy", "");
 
         // Reading from the 'manager' section
@@ -198,7 +228,8 @@ library ConfigReader {
 
         // Reading from the 'rolesAuthority' section
         config.rolesAuthority = _config.readAddress(".rolesAuthority.address");
-        config.strategist = _config.readAddress(".rolesAuthority.strategist");
+        config.strategists = _config.readAddressArray(".rolesAuthority.strategists");
+        config.pausers = _config.readAddressArray(".rolesAuthority.pausers");
         config.exchangeRateBot = _config.readAddress(".rolesAuthority.exchangeRateBot");
         config.rolesAuthorityModuleSpecificNameEntropy =
             _config.readStringOr(".rolesAuthority.moduleSpecificNameEntropy", "");
@@ -208,6 +239,9 @@ library ConfigReader {
         config.distributorCodeDepositorIsNativeDepositSupported =
             _config.readBool(".distributorCodeDepositor.nativeSupported");
         config.distributorCodeDepositorSupplyCap = _config.readUint(".distributorCodeDepositor.supplyCap");
+        config.distributorCodeDepositorAllowPublicDeposit =
+            _config.readBool(".distributorCodeDepositor.allowPublicDeposit");
+        config.distributorCodeDepositorFeeRecipient = _config.readAddress(".distributorCodeDepositor.feeRecipient");
         config.registry = _config.readAddress(".distributorCodeDepositor.registry");
         config.policyID = _config.readString(".distributorCodeDepositor.policyID");
         config.distributorCodeDepositorModuleSpecificNameEntropy =
@@ -217,6 +251,9 @@ library ConfigReader {
         config.withdrawQueueName = _config.readString(".withdrawQueue.name");
         config.withdrawQueueSymbol = _config.readString(".withdrawQueue.symbol");
         config.withdrawQueueFeeRecipient = _config.readAddress(".withdrawQueue.feeRecipient");
+        config.withdrawQueueAllowPublicSubmitOrder = _config.readBool(".withdrawQueue.allowPublicSubmitOrder");
+        config.withdrawQueueAllowPublicUserCancellations =
+            _config.readBool(".withdrawQueue.allowPublicUserCancellations");
         // Optional at read time so configs of already-deployed vaults still load; the withdraw queue deploy step
         // rejects a zero value.
         config.withdrawQueueRecoveryAddress = _config.readAddressOr(".withdrawQueue.recoveryAddress", address(0));
@@ -236,6 +273,14 @@ library ConfigReader {
             _config.readStringOr(".genericDecoderAndSanitizer.moduleSpecificNameEntropy", "");
 
         return config;
+    }
+
+    function _readFreezeHookMode(string memory _config) private pure returns (FreezeHookMode) {
+        bytes32 mode = keccak256(bytes(_config.readString(".freezeListBeforeTransferHook.mode")));
+        if (mode == keccak256("deployNew")) return FreezeHookMode.DEPLOY_NEW;
+        if (mode == keccak256("useExisting")) return FreezeHookMode.USE_EXISTING;
+        if (mode == keccak256("none")) return FreezeHookMode.NONE;
+        revert("ConfigReader: freezeListBeforeTransferHook.mode must be deployNew, useExisting or none");
     }
 
     function compareStrings(string memory a, string memory b) internal pure returns (bool) {
