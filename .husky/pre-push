@@ -1,1 +1,22 @@
-forge build && forge test --no-match-test invariant
+check_foundry_version() {
+  local_version=$(forge --version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
+  latest_version=$(curl -fsSL --max-time 5 https://api.github.com/repos/foundry-rs/foundry/releases/latest 2>/dev/null \
+    | grep -Eo '"tag_name": *"v?[0-9]+\.[0-9]+\.[0-9]+"' | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+')
+
+  [ -z "$local_version" ] || [ -z "$latest_version" ] && return 0
+  [ "$local_version" = "$latest_version" ] && return 0
+
+  newest=$(printf '%s\n%s\n' "$local_version" "$latest_version" | sort -V | tail -n 1)
+  [ "$newest" = "$local_version" ] && return 0
+
+  echo ""
+  echo "Foundry $latest_version is out (you have $local_version)."
+  echo "Review the changes: https://github.com/foundry-rs/foundry/releases"
+  echo ""
+  echo "  - Includes critical security patches? Update now: foundryup"
+  echo "  - Otherwise wait a few days before updating, and push with --no-verify until then."
+  echo ""
+  return 1
+}
+
+check_foundry_version && forge build && forge test --no-match-test invariant
