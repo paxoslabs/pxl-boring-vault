@@ -12,6 +12,7 @@ import { CrossChainTellerBase } from "../../../src/base/Roles/CrossChain/CrossCh
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { stdJson as StdJson } from "@forge-std/StdJson.sol";
+import { IRateProvider } from "src/interfaces/IRateProvider.sol";
 import { console } from "forge-std/console.sol";
 
 contract TellerSetup is BaseScript {
@@ -58,6 +59,7 @@ contract TellerSetup is BaseScript {
                 teller.accountant().setRateProviderData(ERC20(config.withdrawAssets[i]), false, rateProvider);
                 console.log("- RATE PROVIDER: ", rateProvider);
             }
+            _requireUsableRate(teller.accountant(), config.withdrawAssets[i]);
         }
 
         // add the deposit assets specified in the array of config
@@ -88,7 +90,29 @@ contract TellerSetup is BaseScript {
                 teller.accountant().setRateProviderData(ERC20(config.depositAssets[i]), false, rateProvider);
                 console.log("- RATE PROVIDER: ", rateProvider);
             }
+            _requireUsableRate(teller.accountant(), config.depositAssets[i]);
         }
+    }
+
+    /// @dev Checks the wiring just set, since setRateProviderData accepts any address and a bad entry would otherwise
+    /// only surface at the first deposit or withdrawal.
+    function _requireUsableRate(AccountantWithRateProviders accountant, address asset) internal view {
+        (bool isPegged, IRateProvider rateProvider) = accountant.rateProviderData(ERC20(asset));
+        if (!isPegged) {
+            require(address(rateProvider).code.length != 0, "rate provider has no code");
+
+            // Optional: entries for Chainlink and Redstone providers carry no band.
+            string memory chainConfig = getChainConfigFile();
+            string memory assetKey = string.concat(".assetToRateProviderAndPriceFeed.", asset.toHexString());
+            if (vm.keyExistsJson(chainConfig, string.concat(assetKey, ".expectedMin"))) {
+                uint256 rate = rateProvider.getRate();
+                require(rate >= chainConfig.readUint(string.concat(assetKey, ".expectedMin")), "rate below expectedMin");
+                require(rate <= chainConfig.readUint(string.concat(assetKey, ".expectedMax")), "rate above expectedMax");
+            }
+        }
+
+        // The path deposits and withdrawals take, including the rate provider's own staleness check.
+        require(accountant.getRateInQuoteSafe(ERC20(asset)) != 0, "rate in quote is zero");
     }
 
 }

@@ -81,7 +81,16 @@ abstract contract BaseScript is Script {
     }
 
     function deploy(ConfigReader.Config memory config) public returns (address) {
-        require(getMultisig() == config.protocolAdmin, "BASE PRE-DEPLOY CHECK: Multisig does not match protocol admin");
+        if (config.externalProtocolAdmin) {
+            // A vault owned outside Paxos Labs has no entry in getMultisig(). An EOA owner or one equal to the deployer
+            // would leave the vault under a single key after the handover.
+            require(config.protocolAdmin.code.length != 0, "BASE PRE-DEPLOY CHECK: protocol admin has no code");
+            require(config.protocolAdmin != broadcaster, "BASE PRE-DEPLOY CHECK: protocol admin is the deployer");
+        } else {
+            require(
+                getMultisig() == config.protocolAdmin, "BASE PRE-DEPLOY CHECK: Multisig does not match protocol admin"
+            );
+        }
         require(
             config.boringVaultAndBaseDecimals == ERC20(config.base).decimals(),
             "BASE PRE-DEPLOY CHECK: Boring vault and base decimals do not match"

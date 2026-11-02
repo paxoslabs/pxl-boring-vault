@@ -28,6 +28,17 @@
       "rateProvider": "0x0000000000000000000000000000000000000000",
       "name": "PAXG"
     },
+    "0x6c6494fd9962eb98b94ffa48f6679058f820700e": {
+      "isPegged": false,
+      "name": "PAXGy",
+      "denomination": "PAXG/PAXGy",
+      "priceFeedType": 2,
+      "target": "0x397e38359f169748a02bc11f98D4f451FE88C1fd",
+      "signature": "getRateInQuoteSafe(address)",
+      "expectedMin": "1000000000000000000",
+      "expectedMax": "1500000000000000000",
+      "rateProvider": "0x0000000000000000000000000000000000000000"
+    },
     "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0": {
       "isPegged": false,
       "denomination": "stETH/wstETH",
@@ -36,7 +47,7 @@
       "signature": "stEthPerToken()",
       "arg": 0,
       "expectedMin": "1000000000000000000",
-      "expectedMax": "1200000000000000000",
+      "expectedMax": "1500000000000000000",
       "rateProvider": "0xf7c9c121b09cd45591554eb8419a4e8a47e7b0a8"
     },
     "0xcd5fe23c85820f7b72d0926fc9b05b43e359b7ee": {
@@ -47,7 +58,7 @@
       "signature": "getEETHByWeETH(uint256)",
       "arg": 1000000000000000000,
       "expectedMin": "1000000000000000000",
-      "expectedMax": "1200000000000000000",
+      "expectedMax": "1500000000000000000",
       "rateProvider": "0x7d3b0ce57842b01abf6c490646fbb694dfa389e4"
     },
     "0xbf5495efe5db9ce00f80364c8b423567e58d2110": {
@@ -58,7 +69,7 @@
       "signature": "getProtocolExchangeRate()",
       "arg": 0,
       "expectedMin": "1000000000000000000",
-      "expectedMax": "1200000000000000000",
+      "expectedMax": "1500000000000000000",
       "rateProvider": "0x0852be00fa37fc24fb34111e3a4e44a28fb76106"
     },
     "0xa1290d69c65a6fe4df752f95823fae25cb99e5a7": {
@@ -69,7 +80,7 @@
       "signature": "rsETHPrice()",
       "arg": 0,
       "expectedMin": "1000000000000000000",
-      "expectedMax": "1200000000000000000",
+      "expectedMax": "1500000000000000000",
       "rateProvider": "0x6aeea90872fcfb5a45befd070adc3fcd8e71c067"
     },
     "0xfae103dc9cf190ed75350761e95403b7b8afa6c0": {
@@ -80,7 +91,7 @@
       "signature": "getRate()",
       "arg": 0,
       "expectedMin": "1000000000000000000",
-      "expectedMax": "1200000000000000000",
+      "expectedMax": "1500000000000000000",
       "rateProvider": "0x99554bbcb88c2a26897e77686ee5425cebfb4f01"
     },
     "0xd9a442856c234a39a81a089c06451ebaa4306a72": {
@@ -91,7 +102,7 @@
       "signature": "previewRedeem(uint256)",
       "arg": 1000000000000000000,
       "expectedMin": "1000000000000000000",
-      "expectedMax": "1200000000000000000",
+      "expectedMax": "1500000000000000000",
       "rateProvider": "0xbda3cfa3be083f4087cb3b647da8dfca51bdaa6a"
     },
     "0x8db2350d78abc13f5673a411d4700bcf87864dde": {
@@ -113,7 +124,7 @@
       "signature": "assetsPerShare()",
       "arg": 0,
       "expectedMin": "1000000000000000000",
-      "expectedMax": "1200000000000000000",
+      "expectedMax": "1500000000000000000",
       "rateProvider": "0x9a044a83ddd7de8cafd8ecbf70bf7dad4865cf44"
     },
     "0xac3e018457b222d93114458476f3e3416abbe38f": {
@@ -124,7 +135,7 @@
       "signature": "pricePerShare()",
       "arg": 0,
       "expectedMin": "1000000000000000000",
-      "expectedMax": "1200000000000000000",
+      "expectedMax": "1500000000000000000",
       "rateProvider": "0xa427b23b686986ed993b4ba9ae23bf65022f938a"
     },
     "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599": {

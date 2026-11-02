@@ -1,0 +1,103 @@
+{
+  "nameEntropy": "LiquidGold",
+  "base": "0x45804880De22913dAFE09f4980848ECE6EcbAf78",
+  "externalProtocolAdmin": true,
+  "protocolAdmin": "<ETHERFI_TIMELOCK_ETHEREUM>",
+  "boringVaultAndBaseDecimals": "18",
+  "boringVault": {
+    "boringVaultName": "Ether.Fi Liquid Gold",
+    "boringVaultSymbol": "liquidGold",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "freezeListBeforeTransferHook": {
+    "mode": "deployNew",
+    "freezeManagers": [
+      "0x607d0C7e3578802Eb46D388cb86cfba8Ff657306"
+    ],
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "manager": {
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "accountant": {
+    "payoutAddress": "<ETHERFI_SAFE_ETHEREUM>",
+    "allowedExchangeRateChangeUpper": "10004",
+    "allowedExchangeRateChangeLower": "10000",
+    "minimumUpdateDelayInSeconds": "3600",
+    "managementFee": "0",
+    "performanceFee": "0",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "teller": {
+    "tellerContractName": "MultiChainLayerZeroTellerWithMultiAssetSupport",
+    "peerEid": 30111,
+    "setupLZConfigs": true,
+    "maxGasForPeer": 100000,
+    "minGasForPeer": 0,
+    "depositAssets": [
+      "0x45804880De22913dAFE09f4980848ECE6EcbAf78",
+      "0x6c6494Fd9962eB98B94ffA48F6679058F820700e"
+    ],
+    "depositAssetPercentFees": [
+      0,
+      0
+    ],
+    "depositAssetFlatFees": [
+      0,
+      0
+    ],
+    "withdrawAssets": [
+      "0x6c6494Fd9962eB98B94ffA48F6679058F820700e"
+    ],
+    "withdrawAssetPercentFees": [
+      0
+    ],
+    "withdrawAssetFlatFees": [
+      0
+    ],
+    "dvnIfNoDefault": {
+      "required": [
+        "0x589dedbd617e0cbcb916a9223f4d1300c294236b",
+        "0x380275805876ff19055ea900cdb2b46a94ecf20d",
+        "0xa59ba433ac34d2927232918ef5b2eaafcf130ba5",
+        "0x06559ee34d85a88317bf0bfe307444116c631b67"
+      ],
+      "optional": [],
+      "blockConfirmationsRequiredIfNoDefault": 15,
+      "optionalThreshold": 0
+    },
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "rolesAuthority": {
+    "strategists": [
+      "0x607d0C7e3578802Eb46D388cb86cfba8Ff657306",
+      "0xC8111D00351765c64D301CDFc1848bf5Ff2E23A2"
+    ],
+    "exchangeRateBot": "0x607d0C7e3578802Eb46D388cb86cfba8Ff657306",
+    "pausers": [
+      "0x9AF1298993DC1f397973C62A5D47a284CF76844D",
+      "0x607d0C7e3578802Eb46D388cb86cfba8Ff657306",
+      "0x427989Bb12f4A390D11e7647d467DeA02b9d2eE3"
+    ],
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "distributorCodeDepositor": {
+    "deploy": true,
+    "allowPublicDeposit": true,
+    "supplyCap": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+    "feeRecipient": "<ETHERFI_SAFE_ETHEREUM>",
+    "registry": "0x0000000000000000000000000000000000000000",
+    "policyID": "",
+    "nativeSupported": false
+  },
+  "withdrawQueue": {
+    "name": "Ether.Fi Liquid Gold Withdraw Queue",
+    "symbol": "liquidGoldQ",
+    "feeRecipient": "<ETHERFI_SAFE_ETHEREUM>",
+    "recoveryAddress": "<ETHERFI_RECOVERY_ADDRESS_ETHEREUM>",
+    "minimumOrderSize": "1000000000000000",
+    "processorAddress": "0xDb8345450b0E4d28514A1C18EE1110C417b5B0A2",
+    "allowPublicSubmitOrder": true,
+    "allowPublicUserCancellations": true
+  }
+}

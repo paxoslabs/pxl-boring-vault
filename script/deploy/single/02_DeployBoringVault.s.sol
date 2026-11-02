@@ -43,7 +43,7 @@ contract DeployIonBoringVaultScript is BaseScript {
                 ))
         );
 
-        if (config.setBeforeTransferHook) {
+        if (config.freezeHookMode == ConfigReader.FreezeHookMode.USE_EXISTING) {
             require(
                 FREEZE_LIST_BEFORE_TRANSFER_HOOK.code.length != 0,
                 "FreezeListBeforeTransferHook not deployed on this chain. Run DeployBeforeTransferHook first"
@@ -53,6 +53,10 @@ contract DeployIonBoringVaultScript is BaseScript {
             require(
                 address(boringVault.hook()) == FREEZE_LIST_BEFORE_TRANSFER_HOOK, "boringVault must have freeze hook"
             );
+        } else {
+            // Holds under both NONE and DEPLOY_NEW: a new vault has no hook. Under DEPLOY_NEW the hook is deployed and
+            // attached later by DeployFreezeListBeforeTransferHook, which needs the vault's RolesAuthority to exist.
+            require(address(boringVault.hook()) == address(0), "boringVault must have no hook");
         }
 
         // Post Deploy Checks

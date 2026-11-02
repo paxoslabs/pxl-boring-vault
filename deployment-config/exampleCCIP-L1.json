@@ -1,14 +1,17 @@
 {
   "nameEntropy": "exampleCCIP",
   "base": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  "externalProtocolAdmin": false,
   "protocolAdmin": "0x0000000000417626Ef34D62C4DC189b021603f2F",
   "boringVaultAndBaseDecimals": "6",
   "boringVault": {
     "moduleSpecificNameEntropy": "",
     "boringVaultName": "Example CCIP Vault",
     "boringVaultSymbol": "XCCIP",
-    "address": "0x0000000000000000000000000000000000000000",
-    "setBeforeTransferHookAddress": false
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "freezeListBeforeTransferHook": {
+    "mode": "useExisting"
   },
   "manager": {
     "moduleSpecificNameEntropy": "",
@@ -66,7 +69,13 @@
   },
   "rolesAuthority": {
     "moduleSpecificNameEntropy": "",
-    "strategist": "0x0000000000417626Ef34D62C4DC189b021603f2F",
+    "strategists": [
+      "0x0000000000417626Ef34D62C4DC189b021603f2F"
+    ],
+    "pausers": [
+      "0xe5CcB29Cb9C886da329098A184302E2D5Ff0cD9E",
+      "0x07F99eF00C778d5D30e86C2EDB15E69e8763D5f7"
+    ],
     "exchangeRateBot": "0x1755397BEc366a1e1160d8aE0106C60E7e344B56",
     "address": "0x0000000000000000000000000000000000000000"
   },
@@ -76,7 +85,9 @@
     "supplyCap": "1000000000000000",
     "registry": "0xe15a8Ca5BD8464283818088c1760d8f23B6a216E",
     "policyID": "",
-    "nativeSupported": false
+    "nativeSupported": false,
+    "allowPublicDeposit": true,
+    "feeRecipient": "0x0000000000417626Ef34D62C4DC189b021603f2F"
   },
   "withdrawQueue": {
     "moduleSpecificNameEntropy": "",
@@ -85,6 +96,8 @@
     "feeRecipient": "0x0000000000417626Ef34D62C4DC189b021603f2F",
     "recoveryAddress": "0xc130fC52B0A5a11655bDfF6cedCf38FA461d8195",
     "minimumOrderSize": "1000000",
-    "processorAddress": "0x0000000000417626Ef34D62C4DC189b021603f2F"
+    "processorAddress": "0x0000000000417626Ef34D62C4DC189b021603f2F",
+    "allowPublicSubmitOrder": true,
+    "allowPublicUserCancellations": true
   }
 }

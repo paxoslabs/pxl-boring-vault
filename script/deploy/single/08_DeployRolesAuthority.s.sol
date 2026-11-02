@@ -10,7 +10,6 @@ import { BaseScript } from "script/Base.s.sol";
 import { ConfigReader } from "script/ConfigReader.s.sol";
 import { CrossChainTellerBase } from "src/base/Roles/CrossChain/CrossChainTellerBase.sol";
 import { stdJson as StdJson } from "@forge-std/StdJson.sol";
-import { DistributorCodeDepositor } from "src/helper/DistributorCodeDepositor.sol";
 import "src/helper/Constants.sol";
 
 /**
@@ -54,11 +53,11 @@ contract DeployRolesAuthority is BaseScript {
     // 2. teller.bridge()
     // 3. teller.depositAndBridge()
     // --- Users / Role Assignments ---
-    // STRATEGIST_ROLE -> OWNER (multisig)
+    // STRATEGIST_ROLE -> config strategists
     // MANAGER_ROLE -> MANAGER (contract)
     // TELLER_ROLE -> TELLER (contract)
     // UPDATE_EXCHANGE_RATE_ROLE -> EXCHANGE_RATE_BOT (EOA) & OWNER (multisig)
-    // PAUSER_ROLE -> PAUSER (EOA) & OWNER (multisig)
+    // PAUSER_ROLE -> config pausers & OWNER (multisig)
     function _deploy(ConfigReader.Config memory config) public virtual override broadcast returns (address) {
         // Require config Values
         require(config.boringVault.code.length != 0, "boringVault must have code");
@@ -69,7 +68,8 @@ contract DeployRolesAuthority is BaseScript {
         require(config.manager != address(0), "manager");
         require(config.teller != address(0), "teller");
         require(config.accountant != address(0), "accountant");
-        require(config.strategist != address(0), "strategist");
+        require(config.strategists.length != 0, "no strategists");
+        require(config.pausers.length != 0, "no pausers");
 
         bytes32 rolesAuthoritySalt = makeSalt(
             broadcaster,
@@ -133,21 +133,19 @@ contract DeployRolesAuthority is BaseScript {
             PAUSER_ROLE, config.manager, ManagerWithMerkleVerification.pause.selector, true
         );
 
-        // The freeze hook is a chain-wide singleton governed by its own RolesAuthority, not this vault's.
-        // See script/deploy/DeployBeforeTransferHook.s.sol.
+        // The shared freeze hook is a chain-wide singleton governed by its own RolesAuthority, not this vault's
+        // (script/deploy/DeployBeforeTransferHook.s.sol). A dedicated hook is wired by
+        // DeployFreezeListBeforeTransferHook.
 
         // --- Set Public Capabilities ---
         rolesAuthority.setPublicCapability(config.teller, CrossChainTellerBase.bridge.selector, true);
 
         // With the DCD gating deposits, we do not make depositAndBridge public capability. This must be manually
         // configured If the DCD is deployed we set the role capability for the DEPOSITOR_ROLE and grant it to the DCD
-        // once deployed
+        // once deployed. The DCD's own entry points are opened by DeployDistributorCodeDepositor.
         if (config.distributorCodeDepositorDeploy) {
             rolesAuthority.setRoleCapability(
                 DEPOSITOR_ROLE, config.teller, TellerWithMultiAssetSupport.deposit.selector, true
-            );
-            rolesAuthority.setPublicCapability(
-                config.distributorCodeDepositor, DistributorCodeDepositor.deposit.selector, true
             );
         } else {
             rolesAuthority.setPublicCapability(config.teller, TellerWithMultiAssetSupport.deposit.selector, true);
@@ -155,7 +153,10 @@ contract DeployRolesAuthority is BaseScript {
 
         // --- Assign roles to users ---
 
-        rolesAuthority.setUserRole(config.strategist, STRATEGIST_ROLE, true);
+        for (uint256 i; i < config.strategists.length; ++i) {
+            require(config.strategists[i] != address(0), "strategist");
+            rolesAuthority.setUserRole(config.strategists[i], STRATEGIST_ROLE, true);
+        }
 
         rolesAuthority.setUserRole(config.manager, MANAGER_ROLE, true);
 
@@ -167,15 +168,12 @@ contract DeployRolesAuthority is BaseScript {
         }
 
         rolesAuthority.setUserRole(config.protocolAdmin, PAUSER_ROLE, true);
-        rolesAuthority.setUserRole(PAUSER_EOA, PAUSER_ROLE, true);
-        rolesAuthority.setUserRole(PAUSER_CONTRACT, PAUSER_ROLE, true);
+        for (uint256 i; i < config.pausers.length; ++i) {
+            require(config.pausers[i] != address(0), "pauser");
+            rolesAuthority.setUserRole(config.pausers[i], PAUSER_ROLE, true);
+        }
 
         // Post Deploy Checks
-        require(
-            rolesAuthority.doesUserHaveRole(config.strategist, STRATEGIST_ROLE),
-            "strategist should have STRATEGIST_ROLE"
-        );
-
         require(rolesAuthority.doesUserHaveRole(config.manager, MANAGER_ROLE), "manager should have MANAGER_ROLE");
 
         require(rolesAuthority.doesUserHaveRole(config.teller, TELLER_ROLE), "teller should have TELLER_ROLE");
@@ -195,17 +193,24 @@ contract DeployRolesAuthority is BaseScript {
             );
         }
 
-        require(rolesAuthority.doesUserHaveRole(PAUSER_CONTRACT, PAUSER_ROLE), "pauser should have PAUSER_ROLE");
-        require(rolesAuthority.doesUserHaveRole(PAUSER_EOA, PAUSER_ROLE), "pauser eoa should have PAUSER_ROLE");
+        for (uint256 i; i < config.pausers.length; ++i) {
+            require(rolesAuthority.doesUserHaveRole(config.pausers[i], PAUSER_ROLE), "pauser should have PAUSER_ROLE");
+        }
 
-        require(
-            rolesAuthority.canCall(
-                config.strategist,
-                config.manager,
-                ManagerWithMerkleVerification.manageVaultWithMerkleVerification.selector
-            ),
-            "strategist should be able to call manageVaultWithMerkleVerification"
-        );
+        for (uint256 i; i < config.strategists.length; ++i) {
+            require(
+                rolesAuthority.doesUserHaveRole(config.strategists[i], STRATEGIST_ROLE),
+                "strategist should have STRATEGIST_ROLE"
+            );
+            require(
+                rolesAuthority.canCall(
+                    config.strategists[i],
+                    config.manager,
+                    ManagerWithMerkleVerification.manageVaultWithMerkleVerification.selector
+                ),
+                "strategist should be able to call manageVaultWithMerkleVerification"
+            );
+        }
 
         require(
             rolesAuthority.canCall(
@@ -249,8 +254,9 @@ contract DeployRolesAuthority is BaseScript {
 
         // Pauser Roles
         _validatePauserRole(config, rolesAuthority, config.protocolAdmin);
-        _validatePauserRole(config, rolesAuthority, PAUSER_EOA);
-        _validatePauserRole(config, rolesAuthority, PAUSER_CONTRACT);
+        for (uint256 i; i < config.pausers.length; ++i) {
+            _validatePauserRole(config, rolesAuthority, config.pausers[i]);
+        }
 
         return address(rolesAuthority);
     }

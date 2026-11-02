@@ -1,14 +1,17 @@
 {
   "nameEntropy": "exampleL1",
   "base": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+  "externalProtocolAdmin": false,
   "protocolAdmin": "0x0000000000417626Ef34D62C4DC189b021603f2F",
   "boringVaultAndBaseDecimals": "18",
   "boringVault": {
     "moduleSpecificNameEntropy": "",
     "boringVaultName": "PXL Vault",
     "boringVaultSymbol": "PXLV",
-    "address": "0x0000000000E7Ab44153eEBEF2343ba5289F65dAC",
-    "setBeforeTransferHookAddress": true
+    "address": "0x0000000000E7Ab44153eEBEF2343ba5289F65dAC"
+  },
+  "freezeListBeforeTransferHook": {
+    "mode": "useExisting"
   },
   "manager": {
     "moduleSpecificNameEntropy": "",
@@ -108,7 +111,13 @@
   },
   "rolesAuthority": {
     "moduleSpecificNameEntropy": "",
-    "strategist": "0x0000000000417626Ef34D62C4DC189b021603f2F",
+    "strategists": [
+      "0x0000000000417626Ef34D62C4DC189b021603f2F"
+    ],
+    "pausers": [
+      "0xe5CcB29Cb9C886da329098A184302E2D5Ff0cD9E",
+      "0x07F99eF00C778d5D30e86C2EDB15E69e8763D5f7"
+    ],
     "exchangeRateBot": "0x1755397BEc366a1e1160d8aE0106C60E7e344B56",
     "address": "0x00000000004F96C07B83e86600D86F0000000000"
   },
@@ -118,7 +127,9 @@
     "supplyCap": "1000000000000000000000000000",
     "registry": "0xe15a8Ca5BD8464283818088c1760d8f23B6a216E",
     "policyID": "policyOne",
-    "nativeSupported": true
+    "nativeSupported": true,
+    "allowPublicDeposit": true,
+    "feeRecipient": "0x0000000000417626Ef34D62C4DC189b021603f2F"
   },
   "withdrawQueue": {
     "moduleSpecificNameEntropy": "",
@@ -127,6 +138,8 @@
     "feeRecipient": "0x0000000000417626Ef34D62C4DC189b021603f2F",
     "recoveryAddress": "0xc130fC52B0A5a11655bDfF6cedCf38FA461d8195",
     "minimumOrderSize": "1000000000000000000",
-    "processorAddress": "0x00000000004F96C07B83e86600D86F0000000000"
+    "processorAddress": "0x00000000004F96C07B83e86600D86F0000000000",
+    "allowPublicSubmitOrder": true,
+    "allowPublicUserCancellations": true
   }
 }

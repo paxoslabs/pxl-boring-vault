@@ -30,10 +30,7 @@ contract DeployWithdrawQueueAndFeeModule is BaseScript {
             keccak256(bytes(config.withdrawQueueSymbol)) != keccak256(bytes("")),
             "withdrawQueueSymbol must not be empty"
         );
-        require(
-            config.withdrawQueueFeeRecipient == config.protocolAdmin,
-            "withdrawQueueFeeRecipient must be the protocol admin"
-        );
+        require(config.withdrawQueueFeeRecipient != address(0), "withdrawQueueFeeRecipient must not be zero address");
         require(
             config.withdrawQueueRecoveryAddress != address(0), "withdrawQueueRecoveryAddress must not be zero address"
         );
@@ -116,24 +113,31 @@ contract DeployWithdrawQueueAndFeeModule is BaseScript {
             "the withdraw queue recovery address must match the config"
         );
 
-        // Set Role Capabilities
-        RolesAuthority(config.rolesAuthority)
-            .setRoleCapability(
-                WITHDRAW_QUEUE_PROCESSOR_ROLE, address(withdrawQueue), WithdrawQueue.processOrders.selector, true
-            );
+        RolesAuthority rolesAuthority = RolesAuthority(config.rolesAuthority);
+        rolesAuthority.setRoleCapability(
+            WITHDRAW_QUEUE_PROCESSOR_ROLE, withdrawQueue, WithdrawQueue.processOrders.selector, true
+        );
 
-        // Set Public Capabilities
-        RolesAuthority(config.rolesAuthority)
-            .setPublicCapability(address(withdrawQueue), WithdrawQueue.submitOrder.selector, true);
-        RolesAuthority(config.rolesAuthority)
-            .setPublicCapability(address(withdrawQueue), WithdrawQueue.cancelOrder.selector, true);
-        RolesAuthority(config.rolesAuthority)
-            .setPublicCapability(address(withdrawQueue), WithdrawQueue.cancelOrderWithSignature.selector, true);
-        RolesAuthority(config.rolesAuthority).setUserRole(address(withdrawQueue), SOLVER_ROLE, true);
+        // Without `allowPublicSubmitOrder` only MINTER_REDEEMER_ROLE can submit, and this script grants that role to
+        // nobody: the owner whitelists redeemers after deployment.
+        if (config.withdrawQueueAllowPublicSubmitOrder) {
+            rolesAuthority.setPublicCapability(withdrawQueue, WithdrawQueue.submitOrder.selector, true);
+        } else {
+            rolesAuthority.setRoleCapability(
+                MINTER_REDEEMER_ROLE, withdrawQueue, WithdrawQueue.submitOrder.selector, true
+            );
+        }
+
+        // Without these, a pending order can only be unwound by the owner through refundOrder.
+        if (config.withdrawQueueAllowPublicUserCancellations) {
+            rolesAuthority.setPublicCapability(withdrawQueue, WithdrawQueue.cancelOrder.selector, true);
+            rolesAuthority.setPublicCapability(withdrawQueue, WithdrawQueue.cancelOrderWithSignature.selector, true);
+        }
+
+        rolesAuthority.setUserRole(withdrawQueue, SOLVER_ROLE, true);
 
         // Assign roles to addresses
-        RolesAuthority(config.rolesAuthority)
-            .setUserRole(config.withdrawQueueProcessorAddress, WITHDRAW_QUEUE_PROCESSOR_ROLE, true);
+        rolesAuthority.setUserRole(config.withdrawQueueProcessorAddress, WITHDRAW_QUEUE_PROCESSOR_ROLE, true);
 
         return address(withdrawQueue);
     }

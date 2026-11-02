@@ -18,10 +18,13 @@ import { DeployMultiChainHyperlaneTeller } from "./single/06c_DeployMultiChainHy
 import { DeployMultiChainCCIPTeller } from "./single/06d_DeployMultiChainCCIPTeller.s.sol";
 import { TellerSetup } from "./single/07_TellerSetup.s.sol";
 import { DeployRolesAuthority } from "./single/08_DeployRolesAuthority.s.sol";
+import { DeployFreezeListBeforeTransferHook } from "./single/08b_DeployFreezeListBeforeTransferHook.s.sol";
 import { DeployDistributorCodeDepositor } from "./single/09_DeployDistributorCodeDepositor.s.sol";
 import { DeployWithdrawQueueAndFeeModule } from "./single/10_DeployWithdrawQueueAndFeeModule.s.sol";
 import { SetAuthorityAndTransferOwnerships } from "./single/11_SetAuthorityAndTransferOwnerships.s.sol";
 import { DeployGenericDecoderAndSanitizer } from "./single/12_DeployGenericDecoderAndSanitizer.s.sol";
+import { WithdrawQueue } from "src/base/Roles/WithdrawQueue.sol";
+import { DistributorCodeDepositor } from "src/helper/DistributorCodeDepositor.sol";
 
 import { ConfigReader, IAuthority } from "../ConfigReader.s.sol";
 import { console } from "forge-std/console.sol";
@@ -71,6 +74,18 @@ contract DeployAll is BaseScript {
         mainConfig.rolesAuthority.toHexString().write(OUTPUT_JSON_PATH, ".rolesAuthority");
         if (mainConfig.distributorCodeDepositorDeploy) {
             mainConfig.distributorCodeDepositor.toHexString().write(OUTPUT_JSON_PATH, ".distributorCodeDepositor");
+            address(DistributorCodeDepositor(mainConfig.distributorCodeDepositor).feeModule())
+                .toHexString()
+                .write(OUTPUT_JSON_PATH, ".distributorCodeDepositorFeeModule");
+        }
+        mainConfig.withdrawQueue.toHexString().write(OUTPUT_JSON_PATH, ".withdrawQueue");
+        address(WithdrawQueue(mainConfig.withdrawQueue).feeModule())
+            .toHexString()
+            .write(OUTPUT_JSON_PATH, ".withdrawQueueFeeModule");
+        if (mainConfig.freezeHookMode == ConfigReader.FreezeHookMode.DEPLOY_NEW) {
+            mainConfig.freezeListBeforeTransferHook
+                .toHexString()
+                .write(OUTPUT_JSON_PATH, ".freezeListBeforeTransferHook");
         }
         mainConfig.genericDecoderAndSanitizer.toHexString().write(OUTPUT_JSON_PATH, ".genericDecoderAndSanitizer");
     }
@@ -99,6 +114,11 @@ contract DeployAll is BaseScript {
         address rolesAuthority = new DeployRolesAuthority().deploy(config);
         config.rolesAuthority = rolesAuthority;
         console.log("Roles Authority: ", rolesAuthority);
+
+        if (config.freezeHookMode == ConfigReader.FreezeHookMode.DEPLOY_NEW) {
+            config.freezeListBeforeTransferHook = new DeployFreezeListBeforeTransferHook().deploy(config);
+            console.log("Freeze List Before Transfer Hook: ", config.freezeListBeforeTransferHook);
+        }
 
         if (config.distributorCodeDepositorDeploy) {
             config.distributorCodeDepositor = new DeployDistributorCodeDepositor().deploy(config);
