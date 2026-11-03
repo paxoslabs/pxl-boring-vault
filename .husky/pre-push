@@ -1,4 +1,6 @@
 check_foundry_version() {
+  [ -n "$SKIP_FOUNDRY_VERSION_CHECK" ] && return 0
+
   local_version=$(forge --version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?' | head -n 1)
   local_version=${local_version%-stable}
   latest_version=$(curl -fsSL --max-time 5 https://api.github.com/repos/foundry-rs/foundry/releases/latest 2>/dev/null \
@@ -19,7 +21,7 @@ check_foundry_version() {
   echo "Review the changes: https://github.com/foundry-rs/foundry/releases"
   echo ""
   echo "  - Includes critical security patches? Update now: foundryup"
-  echo "  - Otherwise wait a few days before updating, and push with --no-verify until then."
+  echo "  - Otherwise wait a few days before updating, and push with SKIP_FOUNDRY_VERSION_CHECK=1 git push until then."
   echo ""
   return 1
 }
