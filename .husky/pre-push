@@ -1,13 +1,18 @@
 check_foundry_version() {
-  local_version=$(forge --version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
+  local_version=$(forge --version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?' | head -n 1)
+  local_version=${local_version%-stable}
   latest_version=$(curl -fsSL --max-time 5 https://api.github.com/repos/foundry-rs/foundry/releases/latest 2>/dev/null \
     | grep -Eo '"tag_name": *"v?[0-9]+\.[0-9]+\.[0-9]+"' | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+')
 
   [ -z "$local_version" ] || [ -z "$latest_version" ] && return 0
   [ "$local_version" = "$latest_version" ] && return 0
 
-  newest=$(printf '%s\n%s\n' "$local_version" "$latest_version" | sort -V | tail -n 1)
-  [ "$newest" = "$local_version" ] && return 0
+  # A prerelease sorts below its release (1.9.0-nightly < 1.9.0), so only a strictly newer core version passes.
+  local_core=${local_version%%-*}
+  if [ "$local_core" != "$latest_version" ]; then
+    newest=$(printf '%s\n%s\n' "$local_core" "$latest_version" | sort -V | tail -n 1)
+    [ "$newest" = "$local_core" ] && return 0
+  fi
 
   echo ""
   echo "Foundry $latest_version is out (you have $local_version)."
