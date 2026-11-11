@@ -45,6 +45,7 @@ import {
 import { KhalaniDecoderAndSanitizer } from "src/base/DecodersAndSanitizers/Protocols/KhalaniDecoderAndSanitizer.sol";
 import { SkyDecoderAndSanitizer } from "src/base/DecodersAndSanitizers/Protocols/SkyDecoderAndSanitizer.sol";
 import { FluidDecoderAndSanitizer } from "src/base/DecodersAndSanitizers/Protocols/FluidDecoderAndSanitizer.sol";
+import { PathDecoderAndSanitizer } from "src/base/DecodersAndSanitizers/Protocols/PathDecoderAndSanitizer.sol";
 
 contract GenericDecoderAndSanitizer is
     PendleRouterDecoderAndSanitizer,
@@ -68,7 +69,8 @@ contract GenericDecoderAndSanitizer is
     CoreWriterDecoderAndSanitizer,
     KhalaniDecoderAndSanitizer,
     SkyDecoderAndSanitizer,
-    FluidDecoderAndSanitizer
+    FluidDecoderAndSanitizer,
+    PathDecoderAndSanitizer
 {
 
     constructor(
